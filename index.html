@@ -52,6 +52,13 @@ ul{list-style:none;margin:0;padding:0}
 .sn{font-weight:800;color:var(--mut);text-align:center}
 .sr .step{grid-template-columns:40px minmax(0,1fr) 40px;gap:4px}.sr .step input{font-size:19px}
 .pz{max-width:240px}
+#chartBox{margin:16px 0 4px}
+#chartBox .chips{margin-bottom:8px}
+.msum{font-size:15px;margin:4px 0 8px}.msum b{font-stretch:112%;font-weight:800;font-size:19px}
+.fig{position:relative;height:230px}.fig svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ax{fill:var(--mut);font:12px Archivo,sans-serif}.gl{stroke:var(--line);stroke-width:1}
+.ln{stroke:var(--acc);stroke-width:3;fill:none;stroke-linejoin:round}.pt{fill:var(--acc)}
+.mnote{font-size:13px;color:var(--mut);margin:6px 0 0}
 .nums small{font-weight:500;font-size:14px;color:var(--mut);font-stretch:100%}
 .meta{color:var(--mut);font-size:14px}
 .ed{background:var(--field);padding:14px;display:grid;gap:12px}
@@ -97,6 +104,12 @@ ul{list-style:none;margin:0;padding:0}
   <section id="v-hist" hidden>
     <label for="filter">Vis</label>
     <select id="filter"></select>
+    <div id="chartBox" hidden>
+      <div class="chips" id="mchips"></div>
+      <p class="msum" id="msum"></p>
+      <div class="fig"><svg id="chart" role="img" aria-label="Udviklingsgraf"></svg></div>
+      <p class="mnote" id="mnote"></p>
+    </div>
     <div id="hist"></div>
     <h2>Backup</h2>
     <p class="meta">Dine data ligger kun på denne telefon. Gem en backup en gang imellem, og især før du skifter telefon.</p>
@@ -124,8 +137,8 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const same=(a,b)=>String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
 const clone=o=>JSON.parse(JSON.stringify(o));
 const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets||1));o.sets=Array.from({length:n},()=>({kg:+o.kg||0,reps:Math.round(+o.reps||0)}))}delete o.kg;delete o.reps;o.pause=Math.round(+o.pause||0);return o};
-const sumTxt=(v,html)=>{const s=v.sets||[];if(!s.length)return'';const k=x=>+x?fmtKg(x)+(html?' <small>kg</small>':' kg'):'BW';
-  return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>x.reps).join(' / ')} ${html?'<small>reps</small>':'reps'}`:s.map(x=>(+x.kg?fmtKg(x.kg):'BW')+'×'+x.reps).join(' / ')};
+const sumTxt=(v,html)=>{const s=v.sets||[];if(!s.length)return'';const k=x=>x==null?'–':+x?fmtKg(x)+(html?' <small>kg</small>':' kg'):'BW';const r=x=>x==null?'–':x;
+  return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>r(x.reps)).join(' / ')} ${html?'<small>reps</small>':'reps'}`:s.map(x=>(x.kg==null?'–':+x.kg?fmtKg(x.kg):'BW')+'×'+r(x.reps)).join(' / ')};
 const nums=v=>`<span class="nums">${sumTxt(v,true)}</span>`;
 
 /* ---------- lagring ---------- */
@@ -143,7 +156,7 @@ $('date').value=todayIso;
 const dateSel=()=>$('date').value||todayIso;
 
 /* ---------- felter ---------- */
-const stp=(i,k,v,st,m)=>`<div class="step"><button type="button" data-step="-${st}" data-i="${i}" data-k="${k}" aria-label="Mindre">−</button><input data-i="${i}" data-k="${k}" inputmode="${m}" aria-label="${k==='kg'?'Vægt':k==='reps'?'Reps':'Pause'}" value="${k==='kg'?fmtKg(v):Math.round(+v||0)}"><button type="button" data-step="${st}" data-i="${i}" data-k="${k}" aria-label="Mere">+</button></div>`;
+const stp=(i,k,v,st,m)=>`<div class="step"><button type="button" data-step="-${st}" data-i="${i}" data-k="${k}" aria-label="Mindre">−</button><input data-i="${i}" data-k="${k}" inputmode="${m}" aria-label="${k==='kg'?'Vægt':k==='reps'?'Reps':'Pause'}" value="${v==null||v===''?'':k==='kg'?fmtKg(v):Math.round(+v||0)}"><button type="button" data-step="${st}" data-i="${i}" data-k="${k}" aria-label="Mere">+</button></div>`;
 const editor=()=>`<div class="sets"><div class="sh"><span>Sæt</span><span>Vægt (kg)</span><span>Reps</span></div>${draft.sets.map((x,i)=>`<div class="sr"><span class="sn">${i+1}</span>${stp(i,'kg',x.kg,2.5,'decimal')}${stp(i,'reps',x.reps,1,'numeric')}</div>`).join('')}
   <div class="row"><button class="ghost" type="button" data-addset>+ Sæt</button>${draft.sets.length>1?'<button class="ghost" type="button" data-rmset>− Sæt</button>':''}</div></div>
   <div class="pz"><label>Pause (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`;
@@ -192,10 +205,42 @@ function renderProg(){
 
 /* ---------- Historik ---------- */
 const names=()=>[...new Set([...entries.map(e=>e.name),...programs.flatMap(p=>p.items.map(i=>i.name))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'da'));
+const METRICS={kg:['Tungeste vægt','kg'],vol:['Volumen','kg'],e1rm:['Estimeret 1RM','kg'],best:['Reps i bedste sæt','reps'],tot:['Reps i alt','reps']};
+const NOTES={kg:'Den højeste vægt i et sæt pr. pas.',vol:'Vægt × reps lagt sammen for alle sæt i passet.',e1rm:'Beregnet ud fra dit bedste sæt med Epley-formlen: vægt × (1 + reps/30). Et estimat, mest præcist ved få reps.',best:'Flest reps i ét sæt pr. pas.',tot:'Alle reps i passet lagt sammen.'};
+let metric=null,chartData=null;
+function series(name){
+  const by={};entries.filter(e=>e.name===name).forEach(e=>(by[e.date]=by[e.date]||[]).push(...(e.sets||[]).filter(x=>x.reps!=null)));
+  const ds=Object.keys(by).filter(d=>by[d].length).sort(),all=ds.flatMap(d=>by[d]),bw=all.every(x=>!(+x.kg));
+  const keys=bw?['best','tot']:['kg','vol','e1rm'],m=keys.includes(metric)?metric:keys[0];
+  const f={kg:s=>Math.max(...s.map(x=>+x.kg||0)),vol:s=>s.reduce((a,x)=>a+(+x.kg||0)*(+x.reps||0),0),e1rm:s=>Math.max(...s.map(x=>(+x.kg||0)*(1+(+x.reps||0)/30))),best:s=>Math.max(...s.map(x=>+x.reps||0)),tot:s=>s.reduce((a,x)=>a+(+x.reps||0),0)}[m];
+  return{keys,m,pts:ds.map(d=>({d,v:Math.round(f(by[d])*10)/10}))};
+}
+function renderChart(name){
+  const s=series(name);chartData=s;const u=METRICS[s.m][1];
+  $('mchips').innerHTML=s.keys.map(k=>`<button type="button" data-metric="${k}" aria-pressed="${k===s.m}">${METRICS[k][0]}</button>`).join('');
+  const p=s.pts,last=p[p.length-1],first=p[0];
+  if(!last){$('msum').textContent='Ingen registrerede sæt endnu.';$('mnote').textContent='';drawChart();return}
+  const df=Math.round((last.v-first.v)*10)/10;
+  $('msum').innerHTML=`Seneste: <b>${fmtKg(last.v)} ${u}</b>`+(p.length>1?` <span class="meta">· ${df>=0?'+':'−'}${fmtKg(Math.abs(df))} ${u} siden ${shortDate(first.d)}</span>`:'');
+  $('mnote').textContent=NOTES[s.m]+(p.length<2?' Grafen viser en udvikling, når du har mindst to pas.':'');
+  drawChart();
+}
+function drawChart(){
+  const svg=$('chart'),W=svg.clientWidth,H=svg.clientHeight;if(!W||!chartData)return;
+  const p=chartData.pts;if(!p.length){svg.innerHTML='';return}
+  const L=44,R=14,T=12,B=26;let mn=Math.min(...p.map(x=>x.v)),mx=Math.max(...p.map(x=>x.v));const tv=mn===mx?[mn]:[mn,(mn+mx)/2,mx];
+  if(mn===mx){mn-=Math.max(1,mn*.1);mx+=Math.max(1,mx*.1)}const pd=(mx-mn)*.08;mn=Math.max(0,mn-pd);mx+=pd;
+  const x=i=>p.length===1?(L+W-R)/2:L+i*(W-L-R)/(p.length-1),y=v=>T+(mx-v)*(H-T-B)/(mx-mn);
+  const ticks=tv.map(v=>`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${L-6}" y="${y(v)+4}" text-anchor="end">${fmtKg(Math.round(v*10)/10)}</text>`).join('');
+  const xl=p.length>1?`<text class="ax" x="${x(0)}" y="${H-6}">${shortDate(p[0].d)}</text><text class="ax" x="${x(p.length-1)}" y="${H-6}" text-anchor="end">${shortDate(p[p.length-1].d)}</text>`:`<text class="ax" x="${x(0)}" y="${H-6}" text-anchor="middle">${shortDate(p[0].d)}</text>`;
+  svg.innerHTML=ticks+(p.length>1?`<polyline class="ln" points="${p.map((q,i)=>x(i)+','+y(q.v)).join(' ')}"/>`:'')+p.map((q,i)=>`<circle class="pt" cx="${x(i)}" cy="${y(q.v)}" r="${p.length>40?3:4.5}"><title>${shortDate(q.d)}: ${fmtKg(q.v)}</title></circle>`).join('')+xl;
+}
+const chartRO=new ResizeObserver(drawChart);chartRO.observe($('chart'));
 function renderHist(){
   const cur=$('filter').value,n=[...new Set(entries.map(e=>e.name))].sort((a,b)=>a.localeCompare(b,'da'));
   $('filter').innerHTML='<option value="">Alle pas</option>'+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   if(n.includes(cur))$('filter').value=cur;
+  $('chartBox').hidden=!$('filter').value;if($('filter').value)renderChart($('filter').value);
   const list=entries.filter(e=>!$('filter').value||e.name===$('filter').value).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
   if(!list.length){$('hist').innerHTML='<p class="empty">Ingen historik endnu.</p>';return}
   const g={};list.forEach(e=>(g[e.date]=g[e.date]||[]).push(e));
@@ -212,15 +257,16 @@ function render(){
 const findItem=id=>{for(const p of programs){const i=p.items.findIndex(x=>x.id===id);if(i>-1)return{p,i,it:p.items[i]}}return{}};
 function openTrain(id){open=id;draft=null;if(!id)return;const{it}=findItem(id),d=dateSel();
   const src=entries.find(e=>e.date===d&&same(e.name,it.name))||lastBefore(it.name,d)||it;draft={name:it.name,sets:clone(src.sets),pause:src.pause}}
-document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;if(t.dataset.k==='name')draft.name=t.value;else dset(+t.dataset.i,t.dataset.k,num(t.value))});
+document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;if(t.dataset.k==='name')draft.name=t.value;else if(t.value.trim()===''&&+t.dataset.i>=0)draft.sets[+t.dataset.i][t.dataset.k]=null;else dset(+t.dataset.i,t.dataset.k,num(t.value))});
 let sureTimer;
 const confirmTap=id=>{if(sure===id){sure=null;return true}sure=id;clearTimeout(sureTimer);sureTimer=setTimeout(()=>{sure=null;render()},3000);return false};
 
 document.addEventListener('click',ev=>{
   const b=ev.target.closest('button');if(!b)return;const d=b.dataset;
   if(d.step!==undefined&&draft){const i=+d.i,v=Math.max(0,num(dget(i,d.k))+num(d.step));dset(i,d.k,v);b.parentElement.querySelector('input').value=d.k==='kg'?fmtKg(dget(i,d.k)):dget(i,d.k);return}
-  if(d.addset!==undefined){draft.sets.push(clone(draft.sets[draft.sets.length-1]||{kg:20,reps:8}));render();return}
+  if(d.addset!==undefined){draft.sets.push(clone(draft.sets[draft.sets.length-1]||{kg:null,reps:null}));render();return}
   if(d.rmset!==undefined){if(draft.sets.length>1)draft.sets.pop();render();return}
+  if(d.metric){metric=d.metric;renderHist();return}
   if(d.tab){tab=d.tab;open=editItem=draft=null;render();return}
   if(d.prog){active=d.prog;save(KA,active);open=draft=null;render();return}
   if(d.open){openTrain(open===d.open?null:d.open);render();return}
@@ -228,14 +274,14 @@ document.addEventListener('click',ev=>{
     const v={sets:clone(draft.sets),pause:draft.pause};if(ex)Object.assign(ex,v);else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now()});
     saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
   if(d.undo){entries=entries.filter(e=>e.id!==d.undo);saveE();render();return}
-  if(d.openextra){open='extra';draft={name:'',sets:[{kg:20,reps:10}],pause:60};render();$('x-name').focus();return}
-  if(d.saveextra){const n=draft.name.trim();if(!n){$('x-name').focus();return}entries.push({id:uid(),name:n,sets:clone(draft.sets),pause:draft.pause,date:dateSel(),ts:Date.now()});saveE();open=null;render();return}
+  if(d.openextra!==undefined){open='extra';draft={name:'',sets:[{kg:null,reps:null}],pause:90};render();$('x-name').focus();return}
+  if(d.saveextra!==undefined){const n=draft.name.trim();if(!n){$('x-name').focus();return}entries.push({id:uid(),name:n,sets:clone(draft.sets),pause:draft.pause,date:dateSel(),ts:Date.now()});saveE();open=null;render();return}
   if(d.delentry){if(confirmTap(d.delentry)){entries=entries.filter(e=>e.id!==d.delentry);saveE()}render();return}
   if(d.close!==undefined){open=editItem=draft=null;render();return}
   if(d.newprog!==undefined){const p={id:uid(),name:'Dag '+String.fromCharCode(65+programs.length%26),items:[]};programs.push(p);saveP();render();const i=document.querySelector(`[data-pname="${p.id}"]`);i.focus();i.select();return}
   if(d.pup){const i=programs.findIndex(p=>p.id===d.pup);if(i>0){[programs[i-1],programs[i]]=[programs[i],programs[i-1]];saveP()}render();return}
   if(d.pdel){if(confirmTap(d.pdel)){programs=programs.filter(p=>p.id!==d.pdel);saveP()}render();return}
-  if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:20,reps:8},{kg:20,reps:8},{kg:20,reps:8}],pause:90};programs.find(p=>p.id===d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
+  if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:null,reps:null}],pause:90};programs.find(p=>p.id===d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
   if(d.up||d.down){const{p,i}=findItem(d.up||d.down),j=d.up?i-1:i+1;if(p&&j>=0&&j<p.items.length){[p.items[i],p.items[j]]=[p.items[j],p.items[i]];saveP()}render();return}
   if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;render();return}
   if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause});saveP();editItem=null;render();return}
