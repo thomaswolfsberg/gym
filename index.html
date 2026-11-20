@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Træningslog</title>
+<meta name="theme-color" content="#141518">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Træning">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#101112);--ink:light-dark(#141518,#f1f1ef);--mut:light-dark(#686b72,#9a9da4);--line:light-dark(#e3e3e0,#2a2c30);--field:light-dark(#f4f4f2,#1b1c1f);--acc:#d7261e;--ok:light-dark(#1d7a46,#3fb874);--accInk:#fff}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Archivo,system-ui,sans-serif;overflow-x:clip;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:640px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) max(4vw,16px) 60px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-top:6px solid var(--ink);padding-top:14px}
+h1{font-stretch:112%;font-weight:800;font-size:32px;line-height:1.05;margin:0}
+.date{color:var(--mut);font-size:14px;text-align:right}
+nav{display:flex;gap:6px;margin:18px 0 16px}
+nav button,.chips button{flex:1;min-height:44px;border:2px solid var(--ink);background:none;color:var(--ink);font:600 16px Archivo,sans-serif;border-radius:10px;cursor:pointer;padding:0 12px}
+nav button[aria-pressed=true],.chips button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chips button{flex:0 0 auto;border-color:var(--line)}
+label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+input,select{width:100%;min-height:48px;font:16px Archivo,sans-serif;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 12px}
+input:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.step{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px}
+.step input{text-align:center;font-stretch:112%;font-weight:800;font-size:22px;padding:4px}
+.step button{min-height:48px;border:0;border-radius:10px;background:var(--bg);color:var(--ink);font:700 22px Archivo,sans-serif;cursor:pointer;box-shadow:inset 0 0 0 2px var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.primary{flex:1;min-height:52px;border:0;border-radius:12px;background:var(--acc);color:var(--accInk);font:700 17px Archivo,sans-serif;cursor:pointer;padding:0 16px}
+.ghost{min-height:48px;padding:0 16px;border:2px solid var(--line);border-radius:12px;background:none;color:var(--ink);font:600 15px Archivo,sans-serif;cursor:pointer}
+.ghost.sure{background:var(--acc);border-color:var(--acc);color:var(--accInk)}
+.add{width:100%;margin-top:10px;border-style:dashed}
+h2{font-size:20px;font-weight:800;margin:26px 0 8px;font-stretch:108%}
+ul{list-style:none;margin:0;padding:0}
+.card{border:2px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.card.done{border-color:var(--ok)}
+.head{display:grid;grid-template-columns:30px minmax(0,1fr);gap:2px 10px;width:100%;text-align:left;background:none;border:0;color:var(--ink);font:inherit;padding:12px 14px;cursor:pointer}
+.tick{grid-row:span 3;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);margin-top:2px;position:relative}
+.done .tick{background:var(--ok);border-color:var(--ok)}
+.done .tick::after{content:"";position:absolute;left:8px;top:3px;width:6px;height:12px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.name{font-weight:700;font-size:17px}
+.nums{font-stretch:112%;font-weight:800;font-size:19px}
+.sets{display:grid;gap:8px}
+.sh,.sr{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.sh span{font-size:13px;font-weight:600;color:var(--mut)}
+.sn{font-weight:800;color:var(--mut);text-align:center}
+.sr .step{grid-template-columns:40px minmax(0,1fr) 40px;gap:4px}.sr .step input{font-size:19px}
+.pz{max-width:240px}
+.nums small{font-weight:500;font-size:14px;color:var(--mut);font-stretch:100%}
+.meta{color:var(--mut);font-size:14px}
+.ed{background:var(--field);padding:14px;display:grid;gap:12px}
+.prog{border-top:4px solid var(--ink);padding-top:12px;margin-top:22px}
+.prog:first-child{margin-top:4px}
+.ptop{display:flex;gap:8px;align-items:center}
+.ptop input{font-weight:800;font-size:18px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.item .tools{display:flex;gap:4px}
+.ib{min-width:44px;min-height:44px;border:0;background:var(--field);color:var(--ink);border-radius:10px;font:700 16px Archivo,sans-serif;cursor:pointer;padding:0 10px}
+.ib:disabled{opacity:.3}
+.move{min-height:44px;font-size:15px;margin-top:6px;padding:6px 10px}
+.item .ed{grid-column:1/-1;border-radius:12px}
+.e{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.empty{color:var(--mut);padding:14px 0}
+.day{margin-top:20px}.day h3{font-size:15px;margin:0;color:var(--mut);font-weight:600}
+.status{font-size:13px;color:var(--mut);margin-top:24px}
+.small{display:flex;gap:10px;align-items:center;margin-bottom:12px}.small label{margin:0;white-space:nowrap}.small input{min-height:40px;max-width:200px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Træningslog</h1><span class="date" id="today"></span></header>
+  <nav>
+    <button type="button" data-tab="train" aria-pressed="true">Træn</button>
+    <button type="button" data-tab="prog" aria-pressed="false">Program</button>
+    <button type="button" data-tab="hist" aria-pressed="false">Historik</button>
+  </nav>
+
+  <section id="v-train">
+    <div class="chips" id="chips"></div>
+    <div class="small"><label for="date">Dato</label><input id="date" type="date"></div>
+    <ul id="trainList"></ul>
+    <div id="extra"></div>
+  </section>
+
+  <section id="v-prog" hidden>
+    <div id="progs"></div>
+    <button class="ghost add" type="button" data-newprog>+ Ny dag</button>
+  </section>
+
+  <section id="v-hist" hidden>
+    <label for="filter">Vis</label>
+    <select id="filter"></select>
+    <div id="hist"></div>
+    <h2>Backup</h2>
+    <p class="meta">Dine data ligger kun på denne telefon. Gem en backup en gang imellem, og især før du skifter telefon.</p>
+    <div class="row">
+      <button class="ghost" type="button" id="exp">Gem backup</button>
+      <button class="ghost" type="button" id="impBtn">Hent backup</button>
+      <input type="file" id="imp" accept=".json,application/json" hidden>
+    </div>
+  </section>
+  <p class="status" id="status"></p>
+</div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtKg=n=>(Math.round((+n||0)*100)/100).toString().replace('.',',');
+const fmtPause=s=>{s=Math.round(+s||0);return Math.floor(s/60)+':'+pad(s%60)};
+const fmtDate=d=>new Date(d+'T12:00').toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const shortDate=d=>new Date(d+'T12:00').toLocaleDateString('da-DK',{day:'numeric',month:'short'});
+const num=v=>parseFloat(String(v).replace(',','.'))||0;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const same=(a,b)=>String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
+const clone=o=>JSON.parse(JSON.stringify(o));
+const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets||1));o.sets=Array.from({length:n},()=>({kg:+o.kg||0,reps:Math.round(+o.reps||0)}))}delete o.kg;delete o.reps;o.pause=Math.round(+o.pause||0);return o};
+const sumTxt=(v,html)=>{const s=v.sets||[];if(!s.length)return'';const k=x=>+x?fmtKg(x)+(html?' <small>kg</small>':' kg'):'BW';
+  return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>x.reps).join(' / ')} ${html?'<small>reps</small>':'reps'}`:s.map(x=>(+x.kg?fmtKg(x.kg):'BW')+'×'+x.reps).join(' / ')};
+const nums=v=>`<span class="nums">${sumTxt(v,true)}</span>`;
+
+/* ---------- lagring ---------- */
+const KE='traeningslog-v1',KP='traeningslog-programmer-v1',KA='traeningslog-aktiv';
+const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){$('status').textContent='Kunne ikke gemme – telefonens lager er måske fyldt.'}};
+let entries=load(KE,[]),programs=load(KP,[]),active=load(KA,null);
+entries.forEach(norm);programs.forEach(p=>p.items.forEach(norm));
+const saveE=()=>save(KE,entries),saveP=()=>save(KP,programs);
+
+const todayIso=iso(new Date());
+let tab='train',open=null,editItem=null,sure=null,draft=null;
+$('today').textContent=new Date().toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'});
+$('date').value=todayIso;
+const dateSel=()=>$('date').value||todayIso;
+
+/* ---------- felter ---------- */
+const stp=(i,k,v,st,m)=>`<div class="step"><button type="button" data-step="-${st}" data-i="${i}" data-k="${k}" aria-label="Mindre">−</button><input data-i="${i}" data-k="${k}" inputmode="${m}" aria-label="${k==='kg'?'Vægt':k==='reps'?'Reps':'Pause'}" value="${k==='kg'?fmtKg(v):Math.round(+v||0)}"><button type="button" data-step="${st}" data-i="${i}" data-k="${k}" aria-label="Mere">+</button></div>`;
+const editor=()=>`<div class="sets"><div class="sh"><span>Sæt</span><span>Vægt (kg)</span><span>Reps</span></div>${draft.sets.map((x,i)=>`<div class="sr"><span class="sn">${i+1}</span>${stp(i,'kg',x.kg,2.5,'decimal')}${stp(i,'reps',x.reps,1,'numeric')}</div>`).join('')}
+  <div class="row"><button class="ghost" type="button" data-addset>+ Sæt</button>${draft.sets.length>1?'<button class="ghost" type="button" data-rmset>− Sæt</button>':''}</div></div>
+  <div class="pz"><label>Pause (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`;
+const nameField=(id,ph)=>`<div><label for="${id}">Øvelse</label><input id="${id}" data-k="name" list="${id}-l" placeholder="${ph}" value="${esc(draft.name)}"><datalist id="${id}-l">${names().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>`;
+const dget=(i,k)=>i<0?draft.pause:draft.sets[i][k];
+const dset=(i,k,v)=>{v=k==='kg'?Math.round(v*100)/100:Math.round(v);if(i<0)draft.pause=v;else draft.sets[i][k]=v};
+const lastBefore=(name,date)=>entries.filter(e=>same(e.name,name)&&e.date<date).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.ts-b.ts).pop();
+const lastLine=l=>l?`Sidst (${shortDate(l.date)}): ${sumTxt(l)} · pause ${fmtPause(l.pause)}`:'Ikke lavet før';
+
+/* ---------- Træn ---------- */
+function renderTrain(){
+  if(!programs.find(p=>p.id===active))active=programs[0]?.id||null;
+  $('chips').innerHTML=programs.map(p=>`<button type="button" data-prog="${p.id}" aria-pressed="${p.id===active}">${esc(p.name)}</button>`).join('');
+  const d=dateSel(),prog=programs.find(p=>p.id===active);
+  const today=entries.filter(e=>e.date===d);
+  if(!prog){$('trainList').innerHTML='<li class="empty">Du har ingen programmer endnu. Opret dine dage under <b>Program</b>.</li>'}
+  else if(!prog.items.length){$('trainList').innerHTML='<li class="empty">Der er ingen øvelser på denne dag endnu. Tilføj dem under <b>Program</b>.</li>'}
+  else $('trainList').innerHTML=prog.items.map(it=>{
+    const done=today.find(e=>same(e.name,it.name)),last=lastBefore(it.name,d);
+    return `<li class="card ${done?'done':''}"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
+      <span class="tick"></span><span class="name">${esc(it.name)}</span>
+      <span>${done?nums(done)+' <span class="meta">· udført</span>':nums(it)+' <span class="meta" style="white-space:nowrap">· pause '+fmtPause(it.pause)+'</span>'}</span>
+      <span class="meta">${lastLine(last)}</span></button>
+      ${open===it.id?`<div class="ed">${editor()}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
+  }).join('');
+  const other=today.filter(e=>!prog||!prog.items.some(it=>same(it.name,e.name)));
+  $('extra').innerHTML=(other.length?`<h2>Ekstra øvelser</h2><ul>${other.map(e=>`<li class="e"><div><div class="name">${esc(e.name)}</div>${nums(e)} <span class="meta" style="white-space:nowrap">· pause ${fmtPause(e.pause)}</span></div><button class="ghost ${sure===e.id?'sure':''}" type="button" data-delentry="${e.id}">${sure===e.id?'Slet?':'Slet'}</button></li>`).join('')}</ul>`:'')+
+    (open==='extra'?`<div class="card"><div class="ed">${nameField('x-name','F.eks. Biceps curl')}${editor()}<div class="row"><button class="primary" type="button" data-saveextra>Gem</button><button class="ghost" type="button" data-close>Annullér</button></div></div></div>`
+    :`<button class="ghost add" type="button" data-openextra>+ Ekstra øvelse</button>`);
+}
+
+/* ---------- Program ---------- */
+function renderProg(){
+  $('progs').innerHTML=programs.length?programs.map((p,pi)=>`<div class="prog">
+    <div class="ptop"><input aria-label="Navn på dag" data-pname="${p.id}" value="${esc(p.name)}">
+      <button class="ib" type="button" data-pup="${p.id}" ${pi===0?'disabled':''} aria-label="Flyt dag op">↑</button>
+      <button class="ghost ${sure===p.id?'sure':''}" type="button" data-pdel="${p.id}">${sure===p.id?'Slet?':'Slet'}</button></div>
+    <ul>${p.items.map((it,i)=>`<li class="item"><div><div class="name">${esc(it.name)}</div>${nums(it)} <span class="meta" style="white-space:nowrap">· pause ${fmtPause(it.pause)}</span>
+      ${programs.length>1?`<select class="move" data-move="${it.id}" aria-label="Flyt til anden dag"><option value="">Flyt til …</option>${programs.filter(q=>q.id!==p.id).map(q=>`<option value="${q.id}">${esc(q.name)}</option>`).join('')}</select>`:''}</div>
+      <div class="tools"><button class="ib" type="button" data-up="${it.id}" ${i===0?'disabled':''} aria-label="Op">↑</button><button class="ib" type="button" data-down="${it.id}" ${i===p.items.length-1?'disabled':''} aria-label="Ned">↓</button><button class="ib" type="button" data-edit="${it.id}">Ret</button></div>
+      ${editItem===it.id?`<div class="ed">${nameField('p-name','')}${editor()}<div class="row"><button class="primary" type="button" data-saveitem="${it.id}">Gem</button><button class="ghost" type="button" data-close>Annullér</button><button class="ghost ${sure===it.id?'sure':''}" type="button" data-delitem="${it.id}">${sure===it.id?'Slet?':'Slet'}</button></div></div>`:''}
+    </li>`).join('')}</ul>
+    <button class="ghost add" type="button" data-additem="${p.id}">+ Tilføj øvelse</button></div>`).join('')
+    :'<p class="empty">Start med at oprette en dag, f.eks. "Dag A" eller "Ben".</p>';
+}
+
+/* ---------- Historik ---------- */
+const names=()=>[...new Set([...entries.map(e=>e.name),...programs.flatMap(p=>p.items.map(i=>i.name))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'da'));
+function renderHist(){
+  const cur=$('filter').value,n=[...new Set(entries.map(e=>e.name))].sort((a,b)=>a.localeCompare(b,'da'));
+  $('filter').innerHTML='<option value="">Alle pas</option>'+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  if(n.includes(cur))$('filter').value=cur;
+  const list=entries.filter(e=>!$('filter').value||e.name===$('filter').value).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
+  if(!list.length){$('hist').innerHTML='<p class="empty">Ingen historik endnu.</p>';return}
+  const g={};list.forEach(e=>(g[e.date]=g[e.date]||[]).push(e));
+  $('hist').innerHTML=Object.keys(g).map(d=>`<div class="day"><h3>${fmtDate(d)}</h3><ul>${g[d].map(e=>`<li class="e"><div class="name">${esc(e.name)}</div><div>${nums(e)}</div><div class="meta">pause ${fmtPause(e.pause)}</div></li>`).join('')}</ul></div>`).join('');
+}
+
+function render(){
+  for(const t of ['train','prog','hist'])$('v-'+t).hidden=tab!==t;
+  document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===tab));
+  if(tab==='train')renderTrain();if(tab==='prog')renderProg();if(tab==='hist')renderHist();
+}
+
+/* ---------- handlinger ---------- */
+const findItem=id=>{for(const p of programs){const i=p.items.findIndex(x=>x.id===id);if(i>-1)return{p,i,it:p.items[i]}}return{}};
+function openTrain(id){open=id;draft=null;if(!id)return;const{it}=findItem(id),d=dateSel();
+  const src=entries.find(e=>e.date===d&&same(e.name,it.name))||lastBefore(it.name,d)||it;draft={name:it.name,sets:clone(src.sets),pause:src.pause}}
+document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;if(t.dataset.k==='name')draft.name=t.value;else dset(+t.dataset.i,t.dataset.k,num(t.value))});
+let sureTimer;
+const confirmTap=id=>{if(sure===id){sure=null;return true}sure=id;clearTimeout(sureTimer);sureTimer=setTimeout(()=>{sure=null;render()},3000);return false};
+
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest('button');if(!b)return;const d=b.dataset;
+  if(d.step!==undefined&&draft){const i=+d.i,v=Math.max(0,num(dget(i,d.k))+num(d.step));dset(i,d.k,v);b.parentElement.querySelector('input').value=d.k==='kg'?fmtKg(dget(i,d.k)):dget(i,d.k);return}
+  if(d.addset!==undefined){draft.sets.push(clone(draft.sets[draft.sets.length-1]||{kg:20,reps:8}));render();return}
+  if(d.rmset!==undefined){if(draft.sets.length>1)draft.sets.pop();render();return}
+  if(d.tab){tab=d.tab;open=editItem=draft=null;render();return}
+  if(d.prog){active=d.prog;save(KA,active);open=draft=null;render();return}
+  if(d.open){openTrain(open===d.open?null:d.open);render();return}
+  if(d.done){const{it}=findItem(d.done),dt=dateSel(),ex=entries.find(e=>e.date===dt&&same(e.name,it.name));
+    const v={sets:clone(draft.sets),pause:draft.pause};if(ex)Object.assign(ex,v);else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now()});
+    saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
+  if(d.undo){entries=entries.filter(e=>e.id!==d.undo);saveE();render();return}
+  if(d.openextra){open='extra';draft={name:'',sets:[{kg:20,reps:10}],pause:60};render();$('x-name').focus();return}
+  if(d.saveextra){const n=draft.name.trim();if(!n){$('x-name').focus();return}entries.push({id:uid(),name:n,sets:clone(draft.sets),pause:draft.pause,date:dateSel(),ts:Date.now()});saveE();open=null;render();return}
+  if(d.delentry){if(confirmTap(d.delentry)){entries=entries.filter(e=>e.id!==d.delentry);saveE()}render();return}
+  if(d.close!==undefined){open=editItem=draft=null;render();return}
+  if(d.newprog!==undefined){const p={id:uid(),name:'Dag '+String.fromCharCode(65+programs.length%26),items:[]};programs.push(p);saveP();render();const i=document.querySelector(`[data-pname="${p.id}"]`);i.focus();i.select();return}
+  if(d.pup){const i=programs.findIndex(p=>p.id===d.pup);if(i>0){[programs[i-1],programs[i]]=[programs[i],programs[i-1]];saveP()}render();return}
+  if(d.pdel){if(confirmTap(d.pdel)){programs=programs.filter(p=>p.id!==d.pdel);saveP()}render();return}
+  if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:20,reps:8},{kg:20,reps:8},{kg:20,reps:8}],pause:90};programs.find(p=>p.id===d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
+  if(d.up||d.down){const{p,i}=findItem(d.up||d.down),j=d.up?i-1:i+1;if(p&&j>=0&&j<p.items.length){[p.items[i],p.items[j]]=[p.items[j],p.items[i]];saveP()}render();return}
+  if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;render();return}
+  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause});saveP();editItem=null;render();return}
+  if(d.delitem){if(confirmTap(d.delitem)){const{p,i}=findItem(d.delitem);p.items.splice(i,1);saveP();editItem=null}render();return}
+});
+document.addEventListener('change',ev=>{
+  const t=ev.target;
+  if(t.dataset.pname){const p=programs.find(x=>x.id===t.dataset.pname);p.name=t.value.trim()||p.name;saveP();return}
+  if(t.dataset.move&&t.value){const{p,i}=findItem(t.dataset.move);const[it]=p.items.splice(i,1);programs.find(q=>q.id===t.value).items.push(it);saveP();
+    $('status').textContent=`${it.name} er flyttet til ${programs.find(q=>q.id===t.value).name}.`;render();return}
+  if(t.id==='date'){open=draft=null;render();return}
+  if(t.id==='filter'){renderHist();return}
+});
+
+/* ---------- backup ---------- */
+$('exp').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify({version:2,programs,entries},null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='traeningslog-'+todayIso+'.json';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+});
+$('impBtn').addEventListener('click',()=>$('imp').click());
+$('imp').addEventListener('change',async()=>{
+  const file=$('imp').files[0];if(!file)return;
+  try{
+    const data=JSON.parse(await file.text());
+    const inE=Array.isArray(data)?data:(data.entries||[]),inP=Array.isArray(data)?[]:(data.programs||[]);
+    const me=new Map(entries.map(e=>[e.id,e]));inE.filter(e=>e&&e.id&&e.name&&e.date).forEach(e=>me.set(e.id,e));entries=[...me.values()].map(norm);
+    const mp=new Map(programs.map(p=>[p.id,p]));inP.filter(p=>p&&p.id&&Array.isArray(p.items)).forEach(p=>mp.set(p.id,p));programs=[...mp.values()];programs.forEach(p=>p.items.forEach(norm));
+    saveE();saveP();render();
+    $('status').textContent=`Backup hentet: ${inP.length} dage og ${inE.length} registrerede øvelser.`;
+  }catch(e){$('status').textContent='Filen kunne ikke læses som backup.'}
+  $('imp').value='';
+});
+
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+render();
+}
+</script>
+</body>
+</html>
