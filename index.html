@@ -52,6 +52,7 @@ ul{list-style:none;margin:0;padding:0}
 .sn{font-weight:800;color:var(--mut);text-align:center}
 .sr .step{grid-template-columns:40px minmax(0,1fr) 40px;gap:4px}.sr .step input{font-size:19px}
 .pz{max-width:240px}
+.crow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}.ctools{display:flex;flex-direction:column;gap:6px;padding:10px 10px 10px 0}
 #chartBox{margin:16px 0 4px}
 #chartBox .chips{margin-bottom:8px}
 .msum{font-size:15px;margin:4px 0 8px}.msum b{font-stretch:112%;font-weight:800;font-size:19px}
@@ -140,7 +141,7 @@ const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets|
 const sumTxt=(v,html)=>{const s=v.sets||[];if(!s.length)return'';const k=x=>x==null?'–':+x?fmtKg(x)+(html?' <small>kg</small>':' kg'):'BW';const r=x=>x==null?'–':x;
   return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>r(x.reps)).join(' / ')} ${html?'<small>reps'+(v.uni?' pr. side':'')+'</small>':'reps'+(v.uni?' pr. side':'')}`:s.map(x=>(x.kg==null?'–':+x.kg?fmtKg(x.kg):'BW')+'×'+r(x.reps)).join(' / ')+(v.uni&&!s.every(x=>x.kg===s[0].kg)?' pr. side':'')};
 const ORD={side:'én side ad gangen',alt:'skift side hvert sæt'};
-const pzTxt=(v,plain)=>{const w=t=>plain?t:`<span style="white-space:nowrap">${t}</span>`;return v.uni?w(`pause ${fmtPause(v.pause)} mellem sæt`)+' · '+w(`${fmtPause(v.pauseSide)} mellem sider`):w(`pause ${fmtPause(v.pause)}`)};
+const pzTxt=(v,plain)=>{const w=t=>plain?t:`<span style="white-space:nowrap">${t}</span>`;return v.uni&&v.order==='alt'?w(`pause ${fmtPause(v.pause)} ved hvert sideskift`):v.uni?w(`pause ${fmtPause(v.pause)} mellem sæt`)+' · '+w(`${fmtPause(v.pauseSide)} mellem sider`):w(`pause ${fmtPause(v.pause)}`)};
 const nums=v=>`<span class="nums">${sumTxt(v,true)}</span>`;
 
 /* ---------- lagring ---------- */
@@ -160,10 +161,10 @@ const dateSel=()=>$('date').value||todayIso;
 /* ---------- felter ---------- */
 const stp=(i,k,v,st,m)=>`<div class="step"><button type="button" data-step="-${st}" data-i="${i}" data-k="${k}" aria-label="Mindre">−</button><input data-i="${i}" data-k="${k}" inputmode="${m}" aria-label="${k==='kg'?'Vægt':k==='reps'?'Reps':'Pause'}" value="${v==null||v===''?'':k==='kg'?fmtKg(v):Math.round(+v||0)}"><button type="button" data-step="${st}" data-i="${i}" data-k="${k}" aria-label="Mere">+</button></div>`;
 const editor=mode=>`${mode==='prog'?`<div class="chips"><button type="button" data-uni aria-pressed="${!!draft.uni}">${draft.uni?'✓ ':''}Unilateral</button></div>`:''}
-  ${mode==='train'&&draft.uni?`<div><label>Rækkefølge</label><div class="chips">${Object.keys(ORD).map(k=>`<button type="button" data-order="${k}" aria-pressed="${draft.order===k}">${ORD[k][0].toUpperCase()+ORD[k].slice(1)}</button>`).join('')}</div></div>`:''}
+  ${(mode==='train'||mode==='prog')&&draft.uni?`<div><label>Rækkefølge</label><div class="chips">${Object.keys(ORD).map(k=>`<button type="button" data-order="${k}" aria-pressed="${draft.order===k}">${ORD[k][0].toUpperCase()+ORD[k].slice(1)}</button>`).join('')}</div></div>`:''}
   <div class="sets"><div class="sh"><span>Sæt</span><span>Vægt (kg)</span><span>${draft.uni?'Reps pr. side':'Reps'}</span></div>${draft.sets.map((x,i)=>`<div class="sr"><span class="sn">${i+1}</span>${stp(i,'kg',x.kg,2.5,'decimal')}${stp(i,'reps',x.reps,1,'numeric')}</div>`).join('')}
   <div class="row"><button class="ghost" type="button" data-addset>+ Sæt</button>${draft.sets.length>1?'<button class="ghost" type="button" data-rmset>− Sæt</button>':''}</div></div>
-  ${draft.uni?`<div class="pz"><label>Pause mellem sæt (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div><div class="pz"><label>Pause mellem sider (sek)</label>${stp(-2,'pauseSide',draft.pauseSide,15,'numeric')}</div>`
+  ${draft.uni&&draft.order==='alt'?`<div class="pz"><label>Pause ved hvert sideskift (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`:draft.uni?`<div class="pz"><label>Pause mellem sæt (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div><div class="pz"><label>Pause mellem sider (sek)</label>${stp(-2,'pauseSide',draft.pauseSide,15,'numeric')}</div>`
   :`<div class="pz"><label>Pause (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`}`;
 const nameField=(id,ph)=>`<div><label for="${id}">Øvelse</label><input id="${id}" data-k="name" list="${id}-l" placeholder="${ph}" value="${esc(draft.name)}"><datalist id="${id}-l">${names().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>`;
 const dget=(i,k)=>i===-1?draft.pause:i===-2?draft.pauseSide:draft.sets[i][k];
@@ -179,12 +180,13 @@ function renderTrain(){
   const today=entries.filter(e=>e.date===d);
   if(!prog){$('trainList').innerHTML='<li class="empty">Du har ingen programmer endnu. Opret dine dage under <b>Program</b>.</li>'}
   else if(!prog.items.length){$('trainList').innerHTML='<li class="empty">Der er ingen øvelser på denne dag endnu. Tilføj dem under <b>Program</b>.</li>'}
-  else $('trainList').innerHTML=prog.items.map(it=>{
+  else $('trainList').innerHTML=prog.items.map((it,ix)=>{
     const done=today.find(e=>same(e.name,it.name)),last=lastBefore(it.name,d);
-    return `<li class="card ${done?'done':''}"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
+    return `<li class="card ${done?'done':''}"><div class="crow"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
       <span class="tick"></span><span class="name">${esc(it.name)}</span>
       <span>${done?nums(done)+' <span class="meta">· udført</span>':nums(it)+' <span class="meta">· '+pzTxt(it)+'</span>'}</span>
       <span class="meta">${lastLine(last)}</span></button>
+      <div class="ctools"><button class="ib" type="button" data-up="${it.id}" ${ix===0?'disabled':''} aria-label="Flyt op">↑</button><button class="ib" type="button" data-down="${it.id}" ${ix===prog.items.length-1?'disabled':''} aria-label="Flyt ned">↓</button></div></div>
       ${open===it.id?`<div class="ed">${editor('train')}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
   }).join('');
   const other=today.filter(e=>!prog||!prog.items.some(it=>same(it.name,e.name)));
@@ -243,7 +245,7 @@ function drawChart(){
 const chartRO=new ResizeObserver(drawChart);chartRO.observe($('chart'));
 function renderHist(){
   const cur=$('filter').value,n=[...new Set(entries.map(e=>e.name))].sort((a,b)=>a.localeCompare(b,'da'));
-  $('filter').innerHTML='<option value="">Alle pas</option>'+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  $('filter').innerHTML='<option value="">Alle øvelser</option>'+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   if(n.includes(cur))$('filter').value=cur;
   $('chartBox').hidden=!$('filter').value;if($('filter').value)renderChart($('filter').value);
   const list=entries.filter(e=>!$('filter').value||e.name===$('filter').value).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
@@ -290,8 +292,8 @@ document.addEventListener('click',ev=>{
   if(d.pdel){if(confirmTap(d.pdel)){programs=programs.filter(p=>p.id!==d.pdel);saveP()}render();return}
   if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:null,reps:null}],pause:90};programs.find(p=>p.id===d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
   if(d.up||d.down){const{p,i}=findItem(d.up||d.down),j=d.up?i-1:i+1;if(p&&j>=0&&j<p.items.length){[p.items[i],p.items[j]]=[p.items[j],p.items[i]];saveP()}render();return}
-  if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;render();return}
-  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??30});saveP();editItem=null;render();return}
+  if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;if(draft&&!draft.order)draft.order='side';render();return}
+  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??30,order:draft.order||'side'});saveP();editItem=null;render();return}
   if(d.delitem){if(confirmTap(d.delitem)){const{p,i}=findItem(d.delitem);p.items.splice(i,1);saveP();editItem=null}render();return}
 });
 document.addEventListener('change',ev=>{
