@@ -52,6 +52,15 @@ ul{list-style:none;margin:0;padding:0}
 .sn{font-weight:800;color:var(--mut);text-align:center}
 .sr .step{grid-template-columns:40px minmax(0,1fr) 40px;gap:4px}.sr .step input{font-size:19px}
 .pz{max-width:240px}
+textarea{width:100%;min-height:76px;font:16px/1.4 Archivo,sans-serif;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:10px 12px;resize:vertical}
+textarea:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.fnote{font-style:italic;color:var(--mut);font-size:14px}
+.head>span:not(.tick){grid-column:2}
+.dnote{font-size:14px;margin-top:2px}
+.addnote{align-self:start;min-height:44px}
+#hist.all .day{margin-top:30px;border-top:4px solid var(--ink);padding-top:10px}
+#hist.all .day h3{font-size:20px;font-weight:800;color:var(--ink);font-stretch:108%;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+#hist.all .day h3 small{font-size:14px;font-weight:500;color:var(--mut);white-space:nowrap}
 .crow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}.ctools{display:flex;flex-direction:column;gap:6px;padding:10px 10px 10px 0}
 #chartBox{margin:16px 0 4px}
 #chartBox .chips{margin-bottom:8px}
@@ -137,7 +146,7 @@ const num=v=>parseFloat(String(v).replace(',','.'))||0;
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const same=(a,b)=>String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
 const clone=o=>JSON.parse(JSON.stringify(o));
-const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets||1));o.sets=Array.from({length:n},()=>({kg:+o.kg||0,reps:Math.round(+o.reps||0)}))}delete o.kg;delete o.reps;o.pause=Math.round(+o.pause||0);o.uni=!!o.uni;if(o.uni)o.pauseSide=o.pauseSide==null?30:Math.round(+o.pauseSide||0);return o};
+const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets||1));o.sets=Array.from({length:n},()=>({kg:+o.kg||0,reps:Math.round(+o.reps||0)}))}delete o.kg;delete o.reps;o.pause=Math.round(+o.pause||0);o.uni=!!o.uni;if(o.uni)o.pauseSide=o.pauseSide==null?180:Math.round(+o.pauseSide||0);return o};
 const sumTxt=(v,html)=>{const s=v.sets||[];if(!s.length)return'';const k=x=>x==null?'–':+x?fmtKg(x)+(html?' <small>kg</small>':' kg'):'BW';const r=x=>x==null?'–':x;
   return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>r(x.reps)).join(' / ')} ${html?'<small>reps'+(v.uni?' pr. side':'')+'</small>':'reps'+(v.uni?' pr. side':'')}`:s.map(x=>(x.kg==null?'–':+x.kg?fmtKg(x.kg):'BW')+'×'+r(x.reps)).join(' / ')+(v.uni&&!s.every(x=>x.kg===s[0].kg)?' pr. side':'')};
 const ORD={side:'én side ad gangen',alt:'skift side hvert sæt'};
@@ -145,10 +154,10 @@ const pzTxt=(v,plain)=>{const w=t=>plain?t:`<span style="white-space:nowrap">${t
 const nums=v=>`<span class="nums">${sumTxt(v,true)}</span>`;
 
 /* ---------- lagring ---------- */
-const KE='traeningslog-v1',KP='traeningslog-programmer-v1',KA='traeningslog-aktiv';
+const KE='traeningslog-v1',KP='traeningslog-programmer-v1',KA='traeningslog-aktiv',KPA='traeningslog-aktiv-program';
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){$('status').textContent='Kunne ikke gemme – telefonens lager er måske fyldt.'}};
-let entries=load(KE,[]),programs=load(KP,[]),active=load(KA,null);
+let entries=load(KE,[]),programs=load(KP,[]),active=load(KA,null),pActive=load(KPA,null);
 entries.forEach(norm);programs.forEach(p=>p.items.forEach(norm));
 const saveE=()=>save(KE,entries),saveP=()=>save(KP,programs);
 
@@ -166,11 +175,12 @@ const editor=mode=>`${mode==='prog'?`<div class="chips"><button type="button" da
   <div class="row"><button class="ghost" type="button" data-addset>+ Sæt</button>${draft.sets.length>1?'<button class="ghost" type="button" data-rmset>− Sæt</button>':''}</div></div>
   ${draft.uni&&draft.order==='alt'?`<div class="pz"><label>Pause ved hvert sideskift (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`:draft.uni?`<div class="pz"><label>Pause mellem sæt (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div><div class="pz"><label>Pause mellem sider (sek)</label>${stp(-2,'pauseSide',draft.pauseSide,15,'numeric')}</div>`
   :`<div class="pz"><label>Pause (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`}`;
+const noteField=(k,lbl,add)=>draft[k]||draft['_'+k]?`<div><label for="n-${k}">${lbl}</label><textarea id="n-${k}" data-k="${k}" placeholder="Skriv en note …">${esc(draft[k]||'')}</textarea></div>`:`<button class="ghost addnote" type="button" data-addnote="${k}">+ ${add}</button>`;
 const nameField=(id,ph)=>`<div><label for="${id}">Øvelse</label><input id="${id}" data-k="name" list="${id}-l" placeholder="${ph}" value="${esc(draft.name)}"><datalist id="${id}-l">${names().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>`;
 const dget=(i,k)=>i===-1?draft.pause:i===-2?draft.pauseSide:draft.sets[i][k];
 const dset=(i,k,v)=>{v=k==='kg'?Math.round(v*100)/100:Math.round(v);if(i===-1)draft.pause=v;else if(i===-2)draft.pauseSide=v;else draft.sets[i][k]=v};
 const lastBefore=(name,date)=>entries.filter(e=>same(e.name,name)&&e.date<date).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.ts-b.ts).pop();
-const lastLine=l=>l?`Sidst (${shortDate(l.date)}): ${sumTxt(l)} · ${pzTxt(l,true)}${l.uni&&l.order?' · '+ORD[l.order]:''}`:'Ikke lavet før';
+const lastLine=l=>l?`Sidst (${shortDate(l.date)}): ${sumTxt(l)} · ${pzTxt(l,true)}${l.uni&&l.order?' · '+ORD[l.order]:''}`+(l.note?` · Note: ${esc(l.note)}`:''):'Ikke lavet før';
 
 /* ---------- Træn ---------- */
 function renderTrain(){
@@ -183,31 +193,32 @@ function renderTrain(){
   else $('trainList').innerHTML=prog.items.map((it,ix)=>{
     const done=today.find(e=>same(e.name,it.name)),last=lastBefore(it.name,d);
     return `<li class="card ${done?'done':''}"><div class="crow"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
-      <span class="tick"></span><span class="name">${esc(it.name)}</span>
+      <span class="tick"></span><span class="name">${esc(it.name)}</span>${it.note?`<span class="fnote">${esc(it.note)}</span>`:''}
       <span>${done?nums(done)+' <span class="meta">· udført</span>':nums(it)+' <span class="meta">· '+pzTxt(it)+'</span>'}</span>
       <span class="meta">${lastLine(last)}</span></button>
       <div class="ctools"><button class="ib" type="button" data-up="${it.id}" ${ix===0?'disabled':''} aria-label="Flyt op">↑</button><button class="ib" type="button" data-down="${it.id}" ${ix===prog.items.length-1?'disabled':''} aria-label="Flyt ned">↓</button></div></div>
-      ${open===it.id?`<div class="ed">${editor('train')}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
+      ${open===it.id?`<div class="ed">${editor('train')}${noteField('dnote','Note til i dag','Tilføj note')}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
   }).join('');
   const other=today.filter(e=>!prog||!prog.items.some(it=>same(it.name,e.name)));
   $('extra').innerHTML=(other.length?`<h2>Ekstra øvelser</h2><ul>${other.map(e=>`<li class="e"><div><div class="name">${esc(e.name)}</div>${nums(e)} <span class="meta">· ${pzTxt(e)}</span></div><button class="ghost ${sure===e.id?'sure':''}" type="button" data-delentry="${e.id}">${sure===e.id?'Slet?':'Slet'}</button></li>`).join('')}</ul>`:'')+
-    (open==='extra'?`<div class="card"><div class="ed">${nameField('x-name','F.eks. Biceps curl')}${editor('extra')}<div class="row"><button class="primary" type="button" data-saveextra>Gem</button><button class="ghost" type="button" data-close>Annullér</button></div></div></div>`
+    (open==='extra'?`<div class="card"><div class="ed">${nameField('x-name','F.eks. Biceps curl')}${editor('extra')}${noteField('dnote','Note til i dag','Tilføj note')}<div class="row"><button class="primary" type="button" data-saveextra>Gem</button><button class="ghost" type="button" data-close>Annullér</button></div></div></div>`
     :`<button class="ghost add" type="button" data-openextra>+ Ekstra øvelse</button>`);
 }
 
 /* ---------- Program ---------- */
 function renderProg(){
-  $('progs').innerHTML=programs.length?programs.map((p,pi)=>`<div class="prog">
+  if(!programs.find(p=>p.id===pActive))pActive=programs[0]?.id||null;
+  $('progs').innerHTML=(programs.length?`<div class="chips">${programs.map(p=>`<button type="button" data-pprog="${p.id}" aria-pressed="${p.id===pActive}">${esc(p.name)}</button>`).join('')}</div>`:'')+(programs.length?programs.map((p,pi)=>p.id!==pActive?'':`<div class="prog">
     <div class="ptop"><input aria-label="Navn på dag" data-pname="${p.id}" value="${esc(p.name)}">
       <button class="ib" type="button" data-pup="${p.id}" ${pi===0?'disabled':''} aria-label="Flyt dag op">↑</button>
       <button class="ghost ${sure===p.id?'sure':''}" type="button" data-pdel="${p.id}">${sure===p.id?'Slet?':'Slet'}</button></div>
-    <ul>${p.items.map((it,i)=>`<li class="item"><div><div class="name">${esc(it.name)}</div>${nums(it)} <span class="meta">· ${pzTxt(it)}</span>
+    <ul>${p.items.map((it,i)=>`<li class="item"><div><div class="name">${esc(it.name)}</div>${it.note?`<div class="fnote">${esc(it.note)}</div>`:''}${nums(it)} <span class="meta">· ${pzTxt(it)}</span>
       ${programs.length>1?`<select class="move" data-move="${it.id}" aria-label="Flyt til anden dag"><option value="">Flyt til …</option>${programs.filter(q=>q.id!==p.id).map(q=>`<option value="${q.id}">${esc(q.name)}</option>`).join('')}</select>`:''}</div>
       <div class="tools"><button class="ib" type="button" data-up="${it.id}" ${i===0?'disabled':''} aria-label="Op">↑</button><button class="ib" type="button" data-down="${it.id}" ${i===p.items.length-1?'disabled':''} aria-label="Ned">↓</button><button class="ib" type="button" data-edit="${it.id}">Ret</button></div>
-      ${editItem===it.id?`<div class="ed">${nameField('p-name','')}${editor('prog')}<div class="row"><button class="primary" type="button" data-saveitem="${it.id}">Gem</button><button class="ghost" type="button" data-close>Annullér</button><button class="ghost ${sure===it.id?'sure':''}" type="button" data-delitem="${it.id}">${sure===it.id?'Slet?':'Slet'}</button></div></div>`:''}
+      ${editItem===it.id?`<div class="ed">${nameField('p-name','')}${editor('prog')}${noteField('note','Fast note','Tilføj fast note')}<div class="row"><button class="primary" type="button" data-saveitem="${it.id}">Gem</button><button class="ghost" type="button" data-close>Annullér</button><button class="ghost ${sure===it.id?'sure':''}" type="button" data-delitem="${it.id}">${sure===it.id?'Slet?':'Slet'}</button></div></div>`:''}
     </li>`).join('')}</ul>
     <button class="ghost add" type="button" data-additem="${p.id}">+ Tilføj øvelse</button></div>`).join('')
-    :'<p class="empty">Start med at oprette en dag, f.eks. "Dag A" eller "Ben".</p>';
+    :'<p class="empty">Start med at oprette en dag, f.eks. "Dag A" eller "Ben".</p>');
 }
 
 /* ---------- Historik ---------- */
@@ -251,7 +262,9 @@ function renderHist(){
   const list=entries.filter(e=>!$('filter').value||e.name===$('filter').value).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
   if(!list.length){$('hist').innerHTML='<p class="empty">Ingen historik endnu.</p>';return}
   const g={};list.forEach(e=>(g[e.date]=g[e.date]||[]).push(e));
-  $('hist').innerHTML=Object.keys(g).map(d=>`<div class="day"><h3>${fmtDate(d)}</h3><ul>${g[d].map(e=>`<li class="e"><div class="name">${esc(e.name)}</div><div>${nums(e)}</div><div class="meta">${pzTxt(e)}${e.uni&&e.order?' · '+ORD[e.order]:''}</div></li>`).join('')}</ul></div>`).join('');
+  const all=!$('filter').value;$('hist').classList.toggle('all',all);
+  const dayTitle=d=>{const t=new Date(d+'T12:00').toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long',year:d.slice(0,4)===todayIso.slice(0,4)?undefined:'numeric'});return t[0].toUpperCase()+t.slice(1)};
+  $('hist').innerHTML=Object.keys(g).map(d=>`<div class="day"><h3>${all?`${dayTitle(d)} <small>${g[d].length} ${g[d].length===1?'øvelse':'øvelser'}</small>`:fmtDate(d)}</h3><ul>${g[d].map(e=>`<li class="e"><div class="name">${esc(e.name)}</div><div>${nums(e)}</div><div class="meta" style="grid-column:1/-1">${pzTxt(e)}${e.uni&&e.order?` · <span style="white-space:nowrap">${ORD[e.order]}</span>`:''}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li>`).join('')}</ul></div>`).join('');
 }
 
 function render(){
@@ -263,8 +276,8 @@ function render(){
 /* ---------- handlinger ---------- */
 const findItem=id=>{for(const p of programs){const i=p.items.findIndex(x=>x.id===id);if(i>-1)return{p,i,it:p.items[i]}}return{}};
 function openTrain(id){open=id;draft=null;if(!id)return;const{it}=findItem(id),d=dateSel();
-  const src=entries.find(e=>e.date===d&&same(e.name,it.name))||lastBefore(it.name,d)||it;draft={name:it.name,sets:clone(src.sets),pause:src.pause,uni:!!it.uni,pauseSide:src.pauseSide??it.pauseSide??30,order:it.order||src.order||'side'}}
-document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;if(t.dataset.k==='name')draft.name=t.value;else if(t.value.trim()===''&&+t.dataset.i>=0)draft.sets[+t.dataset.i][t.dataset.k]=null;else dset(+t.dataset.i,t.dataset.k,num(t.value))});
+  const src=entries.find(e=>e.date===d&&same(e.name,it.name))||lastBefore(it.name,d)||it;const td=entries.find(e=>e.date===d&&same(e.name,it.name));draft={name:it.name,dnote:td&&td.note||'',sets:clone(src.sets),pause:src.pause,uni:!!it.uni,pauseSide:src.pauseSide??it.pauseSide??180,order:it.order||src.order||'side'}}
+document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;if(t.dataset.k==='name')draft.name=t.value;else if(t.dataset.k==='note'||t.dataset.k==='dnote')draft[t.dataset.k]=t.value;else if(t.value.trim()===''&&+t.dataset.i>=0)draft.sets[+t.dataset.i][t.dataset.k]=null;else dset(+t.dataset.i,t.dataset.k,num(t.value))});
 let sureTimer;
 const confirmTap=id=>{if(sure===id){sure=null;return true}sure=id;clearTimeout(sureTimer);sureTimer=setTimeout(()=>{sure=null;render()},3000);return false};
 
@@ -273,32 +286,34 @@ document.addEventListener('click',ev=>{
   if(d.step!==undefined&&draft){const i=+d.i,v=Math.max(0,num(dget(i,d.k))+num(d.step));dset(i,d.k,v);b.parentElement.querySelector('input').value=d.k==='kg'?fmtKg(dget(i,d.k)):dget(i,d.k);return}
   if(d.addset!==undefined){draft.sets.push(clone(draft.sets[draft.sets.length-1]||{kg:null,reps:null}));render();return}
   if(d.rmset!==undefined){if(draft.sets.length>1)draft.sets.pop();render();return}
-  if(d.uni!==undefined&&draft){draft.uni=!draft.uni;if(draft.pauseSide==null)draft.pauseSide=30;render();return}
+  if(d.addnote&&draft){draft['_'+d.addnote]=true;render();const n=$('n-'+d.addnote);if(n)n.focus();return}
+  if(d.uni!==undefined&&draft){draft.uni=!draft.uni;if(draft.pauseSide==null)draft.pauseSide=180;render();return}
   if(d.order&&draft){draft.order=d.order;render();return}
   if(d.metric){metric=d.metric;renderHist();return}
   if(d.tab){tab=d.tab;open=editItem=draft=null;render();return}
   if(d.prog){active=d.prog;save(KA,active);open=draft=null;render();return}
   if(d.open){openTrain(open===d.open?null:d.open);render();return}
   if(d.done){const{it}=findItem(d.done),dt=dateSel(),ex=entries.find(e=>e.date===dt&&same(e.name,it.name));
-    const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}if(ex)Object.assign(ex,v);else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now()});
+    const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}const dn=(draft.dnote||'').trim();if(dn)v.note=dn;if(ex){Object.assign(ex,v);if(!dn)delete ex.note}else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now()});
     saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
   if(d.undo){entries=entries.filter(e=>e.id!==d.undo);saveE();render();return}
   if(d.openextra!==undefined){open='extra';draft={name:'',sets:[{kg:null,reps:null}],pause:90};render();$('x-name').focus();return}
-  if(d.saveextra!==undefined){const n=draft.name.trim();if(!n){$('x-name').focus();return}entries.push({id:uid(),name:n,sets:clone(draft.sets),pause:draft.pause,date:dateSel(),ts:Date.now()});saveE();open=null;render();return}
+  if(d.saveextra!==undefined){const n=draft.name.trim();if(!n){$('x-name').focus();return}const dn=(draft.dnote||'').trim();entries.push({id:uid(),name:n,sets:clone(draft.sets),pause:draft.pause,date:dateSel(),ts:Date.now(),...(dn?{note:dn}:{})});saveE();open=null;render();return}
   if(d.delentry){if(confirmTap(d.delentry)){entries=entries.filter(e=>e.id!==d.delentry);saveE()}render();return}
   if(d.close!==undefined){open=editItem=draft=null;render();return}
-  if(d.newprog!==undefined){const p={id:uid(),name:'Dag '+String.fromCharCode(65+programs.length%26),items:[]};programs.push(p);saveP();render();const i=document.querySelector(`[data-pname="${p.id}"]`);i.focus();i.select();return}
+  if(d.newprog!==undefined){const p={id:uid(),name:'Dag '+String.fromCharCode(65+programs.length%26),items:[]};programs.push(p);saveP();pActive=p.id;save(KPA,pActive);editItem=draft=null;render();const i=document.querySelector(`[data-pname="${p.id}"]`);i.focus();i.select();return}
   if(d.pup){const i=programs.findIndex(p=>p.id===d.pup);if(i>0){[programs[i-1],programs[i]]=[programs[i],programs[i-1]];saveP()}render();return}
+  if(d.pprog){pActive=d.pprog;save(KPA,pActive);editItem=draft=null;render();return}
   if(d.pdel){if(confirmTap(d.pdel)){programs=programs.filter(p=>p.id!==d.pdel);saveP()}render();return}
   if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:null,reps:null}],pause:90};programs.find(p=>p.id===d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
   if(d.up||d.down){const{p,i}=findItem(d.up||d.down),j=d.up?i-1:i+1;if(p&&j>=0&&j<p.items.length){[p.items[i],p.items[j]]=[p.items[j],p.items[i]];saveP()}render();return}
   if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;if(draft&&!draft.order)draft.order='side';render();return}
-  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??30,order:draft.order||'side'});saveP();editItem=null;render();return}
+  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});saveP();editItem=null;render();return}
   if(d.delitem){if(confirmTap(d.delitem)){const{p,i}=findItem(d.delitem);p.items.splice(i,1);saveP();editItem=null}render();return}
 });
 document.addEventListener('change',ev=>{
   const t=ev.target;
-  if(t.dataset.pname){const p=programs.find(x=>x.id===t.dataset.pname);p.name=t.value.trim()||p.name;saveP();return}
+  if(t.dataset.pname){const p=programs.find(x=>x.id===t.dataset.pname);p.name=t.value.trim()||p.name;saveP();render();return}
   if(t.dataset.move&&t.value){const{p,i}=findItem(t.dataset.move);const[it]=p.items.splice(i,1);programs.find(q=>q.id===t.value).items.push(it);saveP();
     $('status').textContent=`${it.name} er flyttet til ${programs.find(q=>q.id===t.value).name}.`;render();return}
   if(t.id==='date'){open=draft=null;render();return}
