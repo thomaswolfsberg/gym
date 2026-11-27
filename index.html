@@ -97,6 +97,8 @@ button.bankchip{border-style:dashed}
 .hname{background:none;border:0;padding:4px 0;font:inherit;font-weight:700;font-size:17px;color:var(--ink);text-align:left;text-decoration:underline;text-decoration-color:var(--mut);text-underline-offset:4px;cursor:pointer;min-height:36px}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px}.two .add{margin-top:0}
 .back{margin-bottom:12px}
+.seg{margin-bottom:16px}.seg button{flex:1}
+#dev{margin-top:4px}
 .editbar{background:var(--field);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:grid;gap:10px;font-size:16px}
 .editbar .primary{flex:0 0 auto;min-height:48px}
 .dlg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:20px;z-index:10}
@@ -133,7 +135,6 @@ li.dragging .ed{display:none}
   <nav>
     <button type="button" data-tab="train" aria-pressed="true">Træn</button>
     <button type="button" data-tab="prog" aria-pressed="false">Program</button>
-    <button type="button" data-tab="hist" aria-pressed="false">Historik</button>
     <button type="button" data-tab="cal" aria-pressed="false">Kalender</button>
   </nav>
 
@@ -149,19 +150,20 @@ li.dragging .ed{display:none}
     <div id="progs"></div>
   </section>
 
-  <section id="v-cal" hidden><div id="cal"></div></section>
-
-  <section id="v-hist" hidden>
-    <button class="ghost back" type="button" id="backAll" data-backall hidden>← Alle øvelser</button>
-    <label for="filter">Vis</label>
-    <select id="filter"></select>
-    <div id="chartBox" hidden>
-      <div class="chips" id="mchips"></div>
-      <p class="msum" id="msum"></p>
-      <div class="fig"><svg id="chart" role="img" aria-label="Udviklingsgraf"></svg></div>
-      <p class="mnote" id="mnote"></p>
+  <section id="v-cal" hidden>
+    <div class="chips seg"><button type="button" data-calview="cal" aria-pressed="true">Kalender</button><button type="button" data-calview="dev" aria-pressed="false">Udvikling</button></div>
+    <div id="cal"></div>
+    <div id="dev" hidden>
+      <label for="filter">Øvelse</label>
+      <select id="filter"></select>
+      <div id="chartBox" hidden>
+        <div class="chips" id="mchips"></div>
+        <p class="msum" id="msum"></p>
+        <div class="fig"><svg id="chart" role="img" aria-label="Udviklingsgraf"></svg></div>
+        <p class="mnote" id="mnote"></p>
+      </div>
+      <div id="hist"></div>
     </div>
-    <div id="hist"></div>
     <h2>Backup</h2>
     <p class="meta">Dine data ligger kun på denne telefon. Gem en backup en gang imellem, og især før du skifter telefon.</p>
     <div class="row">
@@ -170,6 +172,8 @@ li.dragging .ed{display:none}
       <input type="file" id="imp" accept=".json,application/json" hidden>
     </div>
   </section>
+
+
   <p class="status" id="status"></p>
   <div class="dlg" id="dlg" hidden><div class="dlgbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgText"><p id="dlgText"></p><div class="row"><button class="primary" type="button" data-dlgyes>Ja</button><button class="ghost" type="button" id="dlgNo" data-dlgno>Nej</button></div></div></div>
 </div>
@@ -334,19 +338,17 @@ function drawChart(){
   svg.innerHTML=ticks+(p.length>1?`<polyline class="ln" points="${p.map((q,i)=>x(i)+','+y(q.v)).join(' ')}"/>`:'')+p.map((q,i)=>`<circle class="pt" cx="${x(i)}" cy="${y(q.v)}" r="${p.length>40?3:4.5}"><title>${shortDate(q.d)}: ${fmtKg(q.v)}</title></circle>`).join('')+xl;
 }
 const chartRO=new ResizeObserver(drawChart);chartRO.observe($('chart'));
+let calView='cal',devSel='';
 function renderHist(){
-  const cur=$('filter').value,n=[...new Set(entries.map(e=>e.name))].sort((a,b)=>a.localeCompare(b,'da'));
-  $('filter').innerHTML='<option value="">Alle øvelser</option>'+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
-  if(n.includes(cur))$('filter').value=cur;
-  const f=$('filter').value;
-  $('backAll').hidden=!f;
-  $('chartBox').hidden=!f;if(f)renderChart(f);
-  const list=entries.filter(e=>!f||e.name===f).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
-  if(!list.length){$('hist').innerHTML='<p class="empty">Ingen historik endnu.</p>';return}
-  const g={};list.forEach(e=>(g[e.date]=g[e.date]||[]).push(e));
-  const all=!f;$('hist').classList.toggle('all',all);
-  const dayTitle=d=>{const t=new Date(d+'T12:00').toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long',year:d.slice(0,4)===todayIso.slice(0,4)?undefined:'numeric'});return t[0].toUpperCase()+t.slice(1)};
-  $('hist').innerHTML=Object.keys(g).map(d=>`<div class="day"><h3>${all?`${dayTitle(d)} <small>${g[d].length} ${g[d].length===1?'øvelse':'øvelser'}</small>`:fmtDate(d)}</h3><ul>${g[d].map(e=>`<li class="e">${all?`<button type="button" class="hname" data-hex="${esc(e.name)}">${esc(e.name)}</button>`:`<div class="name">${esc(e.name)}</div>`}<div>${nums(e)}</div><div class="meta" style="grid-column:1/-1">${pzTxt(e)}${e.uni&&e.order?` · <span style="white-space:nowrap">${ORD[e.order]}</span>`:''}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li>`).join('')}</ul></div>`).join('');
+  const n=[...new Set(entries.map(e=>e.name))].sort((a,b)=>a.localeCompare(b,'da'));
+  if(!n.includes(devSel)){const last=[...entries].sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:b.ts-a.ts)[0];devSel=last?last.name:''}
+  $('filter').innerHTML=(n.length?'':'<option value="">Ingen øvelser endnu</option>')+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  $('filter').value=devSel;
+  const f=devSel;$('chartBox').hidden=!f;
+  if(!f){$('hist').innerHTML='<p class="empty">Når du har registreret træning, kan du følge udviklingen i hver øvelse her.</p>';return}
+  renderChart(f);
+  const list=entries.filter(e=>e.name===f).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
+  $('hist').innerHTML=list.map(e=>`<div class="day"><h3>${fmtDate(e.date)}</h3><ul><li class="e"><div class="name">${esc(e.name)}</div><div>${nums(e)}</div><div class="meta" style="grid-column:1/-1">${pzTxt(e)}${e.uni&&e.order?` · <span style="white-space:nowrap">${ORD[e.order]}</span>`:''}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li></ul></div>`).join('');
 }
 
 /* ---------- Kalender ---------- */
@@ -370,7 +372,7 @@ function renderCal(){
   const es=entries.filter(e=>e.date===calSel).sort((a,b)=>a.ts-b.ts),lbl=trainedLabel(calSel),pls=plansOn(calSel);
   const dt=fmtDate(calSel);
   let panel=`<h2 style="margin:22px 0 4px">${dt[0].toUpperCase()+dt.slice(1)}</h2>`;
-  if(es.length)panel+=`<div class="calblock done"><div><b>Trænet: ${esc(lbl)}</b> <span class="meta">· ${es.length} ${es.length===1?'øvelse':'øvelser'}</span></div><ul>${es.map(e=>`<li class="e"><div class="name">${esc(e.name)}</div><div>${nums(e)}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li>`).join('')}</ul></div>`;
+  if(es.length)panel+=`<div class="calblock done"><div><b>Trænet: ${esc(lbl)}</b> <span class="meta">· ${es.length} ${es.length===1?'øvelse':'øvelser'}</span></div><ul>${es.map(e=>`<li class="e"><button type="button" class="hname" data-hex="${esc(e.name)}">${esc(e.name)}</button><div>${nums(e)}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li>`).join('')}</ul></div>`;
   panel+=pls.map(c=>{const f=findDay(c.planId,c.dayId),miss=!es.length&&calSel<todayIso,more=c.series&&cal.filter(x=>x.series===c.series&&x.date>c.date).length;
     return `<div class="calblock ${miss?'miss':''}"><div><b>${f?'Planlagt: '+esc(f.d.name):'Træningsdagen findes ikke længere'}</b>${f?` <span class="meta">· ${esc(f.pl.name)}${f.pl.id===activePlan?'':' (ikke aktivt)'}</span>`:''}${c.series?'<div class="meta">Gentages hver uge</div>':''}${miss?'<div class="meta" style="color:var(--acc)">Ikke gennemført</div>':''}${es.length?'<div class="meta">Gennemført</div>':''}</div>
     ${calMoveId===c.id?`<div><label for="calmovedate">Flyt til dato</label><input id="calmovedate" type="date" value="${c.date}"></div><div class="row"><button class="primary" type="button" data-calmovesave="${c.id}">Gem</button><button class="ghost" type="button" data-calmovecancel>Annullér</button></div>`
@@ -391,9 +393,9 @@ function renderCal(){
   ${calMonth!==todayIso.slice(0,7)?'<button class="ghost" type="button" data-caltoday style="margin-top:6px">Gå til i dag</button>':''}${panel}`;
 }
 function render(){
-  for(const t of ['train','prog','hist','cal'])$('v-'+t).hidden=tab!==t;
+  for(const t of ['train','prog','cal'])$('v-'+t).hidden=tab!==t;
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===tab));
-  if(tab==='train')renderTrain();if(tab==='prog')renderProg();if(tab==='hist')renderHist();if(tab==='cal')renderCal();
+  if(tab==='train')renderTrain();if(tab==='prog')renderProg();if(tab==='cal'){document.querySelectorAll('[data-calview]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.calview===calView));$('cal').hidden=calView!=='cal';$('dev').hidden=calView!=='dev';if(calView==='cal')renderCal();else renderHist()}
 }
 
 /* ---------- handlinger ---------- */
@@ -461,9 +463,9 @@ document.addEventListener('click',ev=>{
   if(d.addnote&&draft){draft['_'+d.addnote]=true;persistDraft();render();const n=$('n-'+d.addnote);if(n)n.focus();return}
   if(d.uni!==undefined&&draft){draft.uni=!draft.uni;if(draft.pauseSide==null)draft.pauseSide=180;persistDraft();render();return}
   if(d.order&&draft){draft.order=d.order;persistDraft();render();return}
-  if(d.metric){metric=d.metric;renderHist();return}
-  if(d.hex!==undefined){$('filter').value=d.hex;renderHist();window.scrollTo({top:0});return}
-  if(d.backall!==undefined){$('filter').value='';renderHist();window.scrollTo({top:0});return}
+  if(d.metric){metric=d.metric;render();return}
+  if(d.calview){calView=d.calview;calForm=false;calMoveId=null;render();window.scrollTo({top:0});return}
+  if(d.hex!==undefined){devSel=d.hex;calView='dev';tab='cal';render();window.scrollTo({top:0});return}
   if(d.tab){if(d.tab!==tab){editPlan=activePlan;newPlanForm=false;calForm=false;calMoveId=null}tab=d.tab;open=editItem=draft=null;planView=false;if(tab==='train')restoreDraft();render();return}
   if(d.prog){active=d.prog;save(KA,active);planBanner=null;open=draft=null;restoreDraft();render();return}
   if(d.open){openTrain(open===d.open?null:d.open);render();return}
@@ -511,7 +513,7 @@ document.addEventListener('change',ev=>{
     $('status').textContent=`${it.name} er flyttet til ${to.name}.`;render();return}
   if(t.id==='date'){open=draft=null;applyPlanFor(dateSel());restoreDraft();render();return}
   if(t.id==='calday'){calDay=t.value;return}
-  if(t.id==='filter'){renderHist();return}
+  if(t.id==='filter'){devSel=t.value;renderHist();return}
 });
 
 /* ---------- backup ---------- */
