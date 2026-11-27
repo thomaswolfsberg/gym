@@ -21,6 +21,7 @@ h1{font-stretch:112%;font-weight:800;font-size:32px;line-height:1.05;margin:0}
 .date{color:var(--mut);font-size:14px;text-align:right}
 nav{display:flex;gap:6px;margin:18px 0 16px}
 nav button,.chips button{flex:1;min-height:44px;border:2px solid var(--ink);background:none;color:var(--ink);font:600 16px Archivo,sans-serif;border-radius:10px;cursor:pointer;padding:0 12px}
+nav button{padding:0 4px;font-size:15px}
 nav button[aria-pressed=true],.chips button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .chips button{flex:0 0 auto;border-color:var(--line)}
@@ -77,7 +78,7 @@ textarea:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .ptop{display:flex;gap:8px;align-items:center}
 .ptop input{font-weight:800;font-size:18px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
-.item .tools{display:flex;gap:4px}
+.item .tools{display:flex;gap:4px;align-items:center}
 .ib{min-width:44px;min-height:44px;border:0;background:var(--field);color:var(--ink);border-radius:10px;font:700 16px Archivo,sans-serif;cursor:pointer;padding:0 10px}
 .ib:disabled{opacity:.3}
 .move{min-height:44px;font-size:15px;margin-top:6px;padding:6px 10px}
@@ -102,6 +103,27 @@ button.bankchip{border-style:dashed}
 .dlgbox{background:var(--bg);color:var(--ink);border-radius:16px;padding:20px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
 .dlgbox p{margin:0 0 16px;font-size:17px;font-weight:600}
 .dlgbox .row button{flex:1 1 0;min-height:52px}
+.grip{touch-action:none;cursor:grab;min-width:44px;min-height:44px;display:grid;place-items:center;color:var(--mut);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+li.dragging{box-shadow:0 10px 28px rgba(0,0,0,.28);position:relative;z-index:5;background:var(--bg)}
+li.dragging .grip{cursor:grabbing;color:var(--ink)}
+li.dragging .ed{display:none}
+.calhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.calhead b{font-size:20px;font-weight:800;font-stretch:108%}
+.cg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.wd{font-size:12px;color:var(--mut);text-align:center;font-weight:600;padding-bottom:2px}
+.cd{aspect-ratio:1;min-height:40px;border:2px solid transparent;border-radius:10px;background:var(--field);color:var(--ink);font:700 15px Archivo,sans-serif;display:grid;place-items:center;cursor:pointer;position:relative;padding:0}
+.cd.done{background:var(--ok);color:#fff}
+.cd.plan{border:2px dashed var(--ink);background:none}
+.cd.miss{background:none;border-color:var(--line);color:var(--mut)}
+.cd.miss::after{content:"";position:absolute;bottom:5px;left:50%;margin-left:-3px;width:6px;height:6px;border-radius:50%;background:var(--acc)}
+.cd.today span{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.cd[aria-pressed=true]{outline:3px solid var(--acc);outline-offset:1px}
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin:10px 0 4px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px}
+.calblock{border:2px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px;display:grid;gap:8px}
+.calblock.done{border-color:var(--ok)}.calblock.miss{border-color:var(--acc)}
+.calblock ul{margin:0}
+.calblock .e{padding:6px 0}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -112,9 +134,11 @@ button.bankchip{border-style:dashed}
     <button type="button" data-tab="train" aria-pressed="true">Træn</button>
     <button type="button" data-tab="prog" aria-pressed="false">Program</button>
     <button type="button" data-tab="hist" aria-pressed="false">Historik</button>
+    <button type="button" data-tab="cal" aria-pressed="false">Kalender</button>
   </nav>
 
   <section id="v-train">
+    <div id="banner"></div>
     <div class="chips" id="chips"></div>
     <div class="small"><label for="date">Dato</label><input id="date" type="date"></div>
     <ul id="trainList"></ul>
@@ -124,6 +148,8 @@ button.bankchip{border-style:dashed}
   <section id="v-prog" hidden>
     <div id="progs"></div>
   </section>
+
+  <section id="v-cal" hidden><div id="cal"></div></section>
 
   <section id="v-hist" hidden>
     <button class="ghost back" type="button" id="backAll" data-backall hidden>← Alle øvelser</button>
@@ -176,7 +202,7 @@ const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){$('sta
 let entries=load(KE,[]),active=load(KA,null),pActive=load(KPA,null);
 let store=load(KPL,null);
 if(!store||!Array.isArray(store.plans)||!store.plans.length){const id=uid();store={plans:[{id,name:'Mit program',days:load(KP,[])}],activePlan:id,bank:[]}}
-let plans=store.plans,activePlan=store.activePlan;const bank=Array.isArray(store.bank)?store.bank:[];
+let plans=store.plans,activePlan=store.activePlan;const bank=Array.isArray(store.bank)?store.bank:[],cal=Array.isArray(store.cal)?store.cal:[];
 if(!plans.find(p=>p.id===activePlan))activePlan=plans[0].id;
 const curPlan=()=>plans.find(p=>p.id===activePlan);
 let programs=curPlan().days,editPlan=activePlan,newPlanForm=false;
@@ -184,7 +210,7 @@ const edPlan=()=>plans.find(p=>p.id===editPlan)||curPlan(),ED=()=>edPlan().days;
 entries.forEach(norm);plans.forEach(pl=>pl.days.forEach(p=>p.items.forEach(norm)));bank.forEach(norm);
 const BANK='bank',bankDay=()=>({id:BANK,name:'Øvelsesbank',items:bank});
 const saveE=()=>save(KE,entries);
-const saveP=()=>{curPlan().days=programs;save(KPL,{plans,activePlan,bank})};
+const saveP=()=>{curPlan().days=programs;save(KPL,{plans,activePlan,bank,cal})};
 saveP();
 
 const todayIso=iso(new Date());
@@ -216,6 +242,8 @@ const names=()=>[...new Set([...entries.map(e=>e.name),...programs.flatMap(p=>p.
 
 /* ---------- Træn ---------- */
 function renderTrain(){
+  const bc=planBanner&&planBanner.date===dateSel()&&cal.find(x=>x.id===planBanner.id),bf=bc&&findDay(bc.planId,bc.dayId);
+  $('banner').innerHTML=bf?`<div class="editbar"><div>${dateSel()===todayIso?'I dag':'Den '+shortDate(dateSel())} er der planlagt <b>${esc(bf.d.name)}</b> fra <b>${esc(bf.pl.name)}</b>, som ikke er dit aktive program.</div><div class="row"><button class="primary" type="button" data-banact>Aktivér ${esc(bf.pl.name)}</button><button class="ghost" type="button" data-banno>Ikke nu</button></div></div>`:'';
   if(!programs.find(p=>p.id===active))active=programs[0]?.id||null;
   $('chips').innerHTML=programs.map(p=>`<button type="button" data-prog="${p.id}" aria-pressed="${p.id===active}">${esc(p.name)}</button>`).join('');
   const d=dateSel(),prog=programs.find(p=>p.id===active);
@@ -224,11 +252,11 @@ function renderTrain(){
   else if(!prog.items.length){$('trainList').innerHTML='<li class="empty">Der er ingen øvelser på denne dag endnu. Tryk <b>+ Ny øvelse</b> nedenfor, eller tilføj dem under <b>Program</b>.</li>'}
   else $('trainList').innerHTML=prog.items.map((it,ix)=>{
     const done=today.find(e=>same(e.name,it.name)),last=lastBefore(it.name,d);
-    return `<li class="card ${done?'done':''}"><div class="crow"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
+    return `<li class="card ${done?'done':''}" data-id="${it.id}"><div class="crow"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
       <span class="tick"></span><span class="name">${esc(it.name)}</span>${it.note?`<span class="fnote">${esc(it.note)}</span>`:''}
       <span>${done?nums(done)+' <span class="meta">· udført</span>':nums(it)+' <span class="meta">· '+pzTxt(it)+'</span>'}</span>
       <span class="meta">${lastLine(last)}</span></button>
-      <div class="ctools"><button class="ib" type="button" data-up="${it.id}" ${ix===0?'disabled':''} aria-label="Flyt op">↑</button><button class="ib" type="button" data-down="${it.id}" ${ix===prog.items.length-1?'disabled':''} aria-label="Flyt ned">↓</button></div></div>
+      <div class="ctools"><span class="grip" data-grip="${it.id}" role="button" aria-label="Træk for at flytte"><svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M1 1h18M1 7h18M1 13h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></div></div>
       ${open===it.id?`<div class="ed">${editor('train')}${noteField('dnote','Note til i dag','Tilføj note')}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
   }).join('');
   const other=today.filter(e=>!prog||!prog.items.some(it=>same(it.name,e.name)));
@@ -255,9 +283,9 @@ function renderProg(){
     :`<div class="ptop"><input aria-label="Navn på dag" data-pname="${p.id}" value="${esc(p.name)}">
       <button class="ib" type="button" data-pup="${p.id}" ${pi===0?'disabled':''} aria-label="Flyt dag op">↑</button>
       <button class="ghost ${sure===p.id?'sure':''}" type="button" data-pdel="${p.id}">${sure===p.id?'Slet?':'Slet'}</button></div>`}
-    <ul>${p.items.length?p.items.map((it,i)=>`<li class="item"><div><div class="name">${esc(it.name)}</div>${it.note?`<div class="fnote">${esc(it.note)}</div>`:''}${nums(it)} <span class="meta">· ${pzTxt(it)}</span>
+    <ul>${p.items.length?p.items.map((it,i)=>`<li class="item" data-id="${it.id}"><div><div class="name">${esc(it.name)}</div>${it.note?`<div class="fnote">${esc(it.note)}</div>`:''}${nums(it)} <span class="meta">· ${pzTxt(it)}</span>
       ${targets.length?`<select class="move" data-move="${it.id}" aria-label="Flyt til"><option value="">Flyt til …</option>${targets.map(q=>`<option value="${q.id}">${esc(q.name)}</option>`).join('')}</select>`:''}</div>
-      <div class="tools"><button class="ib" type="button" data-up="${it.id}" ${i===0?'disabled':''} aria-label="Op">↑</button><button class="ib" type="button" data-down="${it.id}" ${i===p.items.length-1?'disabled':''} aria-label="Ned">↓</button><button class="ib" type="button" data-edit="${it.id}">Ret</button></div>
+      <div class="tools"><button class="ib" type="button" data-edit="${it.id}">Ret</button><span class="grip" data-grip="${it.id}" role="button" aria-label="Træk for at flytte"><svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M1 1h18M1 7h18M1 13h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></div>
       ${editItem===it.id?`<div class="ed">${nameField('p-name','')}${editor('prog')}${noteField('note','Fast note','Tilføj fast note')}<div class="row"><button class="primary" type="button" data-saveitem="${it.id}">Gem</button><button class="ghost" type="button" data-close>Annullér</button><button class="ghost ${sure===it.id?'sure':''}" type="button" data-delitem="${it.id}">${sure===it.id?'Slet?':'Slet'}</button></div></div>`:''}
     </li>`).join(''):`<li class="empty">${isBank?'Banken er tom.':'Ingen øvelser på denne dag endnu.'}</li>`}</ul>
     <button class="ghost add" type="button" data-additem="${p.id}">+ Tilføj øvelse${isBank?' til banken':''}</button></div>`)
@@ -321,10 +349,51 @@ function renderHist(){
   $('hist').innerHTML=Object.keys(g).map(d=>`<div class="day"><h3>${all?`${dayTitle(d)} <small>${g[d].length} ${g[d].length===1?'øvelse':'øvelser'}</small>`:fmtDate(d)}</h3><ul>${g[d].map(e=>`<li class="e">${all?`<button type="button" class="hname" data-hex="${esc(e.name)}">${esc(e.name)}</button>`:`<div class="name">${esc(e.name)}</div>`}<div>${nums(e)}</div><div class="meta" style="grid-column:1/-1">${pzTxt(e)}${e.uni&&e.order?` · <span style="white-space:nowrap">${ORD[e.order]}</span>`:''}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li>`).join('')}</ul></div>`).join('');
 }
 
+/* ---------- Kalender ---------- */
+let calMonth=todayIso.slice(0,7),calSel=todayIso,calForm=false,calRep=false,calWeeks=6,calDay='',calMoveId=null,planBanner=null;
+const addDays=(d,n)=>{const x=new Date(d+'T12:00');x.setDate(x.getDate()+n);return iso(x)};
+const findDay=(planId,dayId)=>{const pl=plans.find(p=>p.id===planId),d=pl&&pl.days.find(x=>x.id===dayId);return d?{pl,d}:null};
+const plansOn=date=>cal.filter(c=>c.date===date).sort((a,b)=>(a.ts||0)-(b.ts||0));
+function trainedLabel(date){const es=entries.filter(e=>e.date===date);if(!es.length)return null;
+  const nm=[...new Set(es.map(e=>e.dayId).filter(Boolean).map(id=>{for(const pl of plans){const d=pl.days.find(x=>x.id===id);if(d)return d.name}return null}).filter(Boolean))];
+  if(nm.length)return nm.join(' + ');
+  let best=null,bn=0;for(const pl of plans)for(const d of pl.days){const n=d.items.filter(i=>es.some(e=>same(e.name,i.name))).length;if(n>bn){bn=n;best=d.name}}
+  return best||'Træning'}
+const cellState=date=>entries.some(e=>e.date===date)?'done':plansOn(date).length?(date<todayIso?'miss':'plan'):'';
+function applyPlanFor(date){planBanner=null;const c=plansOn(date).find(c=>findDay(c.planId,c.dayId));if(!c)return;if(c.planId===activePlan)active=c.dayId;else planBanner={id:c.id,date}}
+function activatePlan(id){saveP();activePlan=id;editPlan=id;programs=curPlan().days;pActive=null;active=null;save(KA,null);clearDraft();saveP()}
+function renderCal(){
+  const[y,m]=calMonth.split('-').map(Number),first=new Date(y,m-1,1),nd=new Date(y,m,0).getDate(),off=(first.getDay()+6)%7;
+  const ttl=first.toLocaleDateString('da-DK',{month:'long',year:'numeric'});
+  let cells='';for(let i=0;i<off;i++)cells+='<span></span>';
+  for(let d=1;d<=nd;d++){const ds=calMonth+'-'+pad(d);cells+=`<button type="button" class="cd ${cellState(ds)} ${ds===todayIso?'today':''}" data-cald="${ds}" aria-pressed="${ds===calSel}" aria-label="${fmtDate(ds)}"><span>${d}</span></button>`}
+  const es=entries.filter(e=>e.date===calSel).sort((a,b)=>a.ts-b.ts),lbl=trainedLabel(calSel),pls=plansOn(calSel);
+  const dt=fmtDate(calSel);
+  let panel=`<h2 style="margin:22px 0 4px">${dt[0].toUpperCase()+dt.slice(1)}</h2>`;
+  if(es.length)panel+=`<div class="calblock done"><div><b>Trænet: ${esc(lbl)}</b> <span class="meta">· ${es.length} ${es.length===1?'øvelse':'øvelser'}</span></div><ul>${es.map(e=>`<li class="e"><div class="name">${esc(e.name)}</div><div>${nums(e)}</div>${e.note?`<div class="dnote" style="grid-column:1/-1">Note: ${esc(e.note)}</div>`:''}</li>`).join('')}</ul></div>`;
+  panel+=pls.map(c=>{const f=findDay(c.planId,c.dayId),miss=!es.length&&calSel<todayIso,more=c.series&&cal.filter(x=>x.series===c.series&&x.date>c.date).length;
+    return `<div class="calblock ${miss?'miss':''}"><div><b>${f?'Planlagt: '+esc(f.d.name):'Træningsdagen findes ikke længere'}</b>${f?` <span class="meta">· ${esc(f.pl.name)}${f.pl.id===activePlan?'':' (ikke aktivt)'}</span>`:''}${c.series?'<div class="meta">Gentages hver uge</div>':''}${miss?'<div class="meta" style="color:var(--acc)">Ikke gennemført</div>':''}${es.length?'<div class="meta">Gennemført</div>':''}</div>
+    ${calMoveId===c.id?`<div><label for="calmovedate">Flyt til dato</label><input id="calmovedate" type="date" value="${c.date}"></div><div class="row"><button class="primary" type="button" data-calmovesave="${c.id}">Gem</button><button class="ghost" type="button" data-calmovecancel>Annullér</button></div>`
+    :`<div class="row">${f&&calSel===todayIso&&!es.length?`<button class="primary" type="button" data-caltrain="${c.id}">Træn nu</button>`:''}${f?`<button class="ghost" type="button" data-calmove="${c.id}">Flyt</button>`:''}<button class="ghost" type="button" data-caldel="${c.id}">Slet</button>${more?`<button class="ghost" type="button" data-calseries="${c.id}">Slet denne og senere</button>`:''}</div>`}</div>`}).join('');
+  if(!es.length&&!pls.length)panel+=`<p class="meta">${calSel<todayIso?'Ingen træning denne dag.':'Intet planlagt endnu.'}</p>`;
+  if(calSel>=todayIso){
+    const opts=[curPlan(),...plans.filter(p=>p.id!==activePlan)].filter(p=>p.days.length).map(p=>`<optgroup label="${esc(p.name)}${p.id===activePlan?' (aktivt)':''}">${p.days.map(d=>`<option value="${p.id}|${d.id}" ${calDay===p.id+'|'+d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</optgroup>`).join('');
+    panel+=calForm?(opts?`<div class="card" style="margin-top:12px"><div class="ed"><div><label for="calday">Træningsdag</label><select id="calday">${opts}</select></div>
+      <div class="chips" style="margin:0"><button type="button" data-calrep aria-pressed="${calRep}">${calRep?'✓ ':''}Gentag hver uge</button></div>
+      ${calRep?`<div class="pz"><label>Antal uger</label><div class="step"><button type="button" data-calw="-1" aria-label="Færre">−</button><input id="calweeks" inputmode="numeric" value="${calWeeks}" aria-label="Antal uger"><button type="button" data-calw="1" aria-label="Flere">+</button></div></div><p class="meta" style="margin:0">Hver ${new Date(calSel+'T12:00').toLocaleDateString('da-DK',{weekday:'long'})} fra ${shortDate(calSel)} til ${shortDate(addDays(calSel,7*(calWeeks-1)))}</p>`:''}
+      <div class="row"><button class="primary" type="button" data-calsave>Planlæg</button><button class="ghost" type="button" data-calcancel>Annullér</button></div></div></div>`
+      :'<p class="meta">Opret først dage under <b>Program</b>, så kan du planlægge dem her.</p>')
+    :`<button class="ghost add" type="button" data-calform>+ Planlæg træning</button>`;
+  }
+  $('cal').innerHTML=`<div class="calhead"><button class="ib" type="button" data-calnav="-1" aria-label="Forrige måned">‹</button><b>${ttl[0].toUpperCase()+ttl.slice(1)}</b><button class="ib" type="button" data-calnav="1" aria-label="Næste måned">›</button></div>
+  <div class="cg">${['Man','Tir','Ons','Tor','Fre','Lør','Søn'].map(w=>`<span class="wd">${w}</span>`).join('')}${cells}</div>
+  <div class="legend"><span><i style="background:var(--ok)"></i>Trænet</span><span><i style="border:2px dashed var(--ink)"></i>Planlagt</span><span><i style="border:2px solid var(--line);background:radial-gradient(circle at 50% 70%,var(--acc) 0 2.5px,transparent 3px)"></i>Ikke gennemført</span></div>
+  ${calMonth!==todayIso.slice(0,7)?'<button class="ghost" type="button" data-caltoday style="margin-top:6px">Gå til i dag</button>':''}${panel}`;
+}
 function render(){
-  for(const t of ['train','prog','hist'])$('v-'+t).hidden=tab!==t;
+  for(const t of ['train','prog','hist','cal'])$('v-'+t).hidden=tab!==t;
   document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===tab));
-  if(tab==='train')renderTrain();if(tab==='prog')renderProg();if(tab==='hist')renderHist();
+  if(tab==='train')renderTrain();if(tab==='prog')renderProg();if(tab==='hist')renderHist();if(tab==='cal')renderCal();
 }
 
 /* ---------- handlinger ---------- */
@@ -345,6 +414,18 @@ let sureTimer;
 const confirmTap=id=>{if(sure===id){sure=null;return true}sure=id;clearTimeout(sureTimer);sureTimer=setTimeout(()=>{sure=null;render()},3000);return false};
 const doneIdx=prog=>{let last=-1;const dt=dateSel();prog.items.forEach((x,i)=>{if(entries.some(e=>e.date===dt&&same(e.name,x.name)))last=i});return last};
 
+let drag=null;
+function dragReorder(){const{li,ul,y}=drag,sibs=[...ul.children].filter(x=>x!==li&&x.dataset.id);
+  for(const sb of sibs){const r=sb.getBoundingClientRect();if(y<r.top+r.height/2){if(li.nextElementSibling!==sb){ul.insertBefore(li,sb);drag.moved=true}return}}
+  const last=sibs[sibs.length-1];if(last&&last.nextElementSibling!==li){last.after(li);drag.moved=true}}
+function dragTick(){if(!drag)return;if(drag.y<80)window.scrollBy(0,-9);else if(drag.y>innerHeight-80)window.scrollBy(0,9);dragReorder();drag.raf=requestAnimationFrame(dragTick)}
+document.addEventListener('pointerdown',ev=>{const g=ev.target.closest('.grip');if(!g)return;ev.preventDefault();const li=g.closest('li');
+  drag={li,ul:li.parentElement,id:g.dataset.grip,y:ev.clientY,pid:ev.pointerId,moved:false};li.classList.add('dragging');
+  try{g.setPointerCapture(ev.pointerId)}catch(e){}try{navigator.vibrate&&navigator.vibrate(12)}catch(e){}drag.raf=requestAnimationFrame(dragTick)});
+document.addEventListener('pointermove',ev=>{if(drag&&ev.pointerId===drag.pid){drag.y=ev.clientY;ev.preventDefault()}},{passive:false});
+const dragEnd=ev=>{if(!drag||ev.pointerId!==drag.pid)return;cancelAnimationFrame(drag.raf);const{li,ul,id,moved}=drag;drag=null;li.classList.remove('dragging');
+  if(moved){const ids=[...ul.children].map(x=>x.dataset.id).filter(Boolean),{p}=findItem(id);if(p){p.items.sort((a,b)=>ids.indexOf(a.id)-ids.indexOf(b.id));saveP()}}render()};
+document.addEventListener('pointerup',dragEnd);document.addEventListener('pointercancel',dragEnd);
 let dlgFn=null;
 function askConfirm(text,fn){dlgFn=fn;$('dlgText').textContent=text;$('dlg').hidden=false;$('dlgNo').focus()}
 const closeDlg=()=>{$('dlg').hidden=true;dlgFn=null};
@@ -354,6 +435,26 @@ document.addEventListener('click',ev=>{
   const b=ev.target.closest('button');if(!b)return;const d=b.dataset;
   if(d.dlgyes!==undefined){const f=dlgFn;closeDlg();if(f)f();return}
   if(d.dlgno!==undefined){closeDlg();return}
+  /* Kalender */
+  if(d.calnav){const[y,m]=calMonth.split('-').map(Number),x=new Date(y,m-1+(+d.calnav),1);calMonth=x.getFullYear()+'-'+pad(x.getMonth()+1);render();return}
+  if(d.caltoday!==undefined){calMonth=todayIso.slice(0,7);calSel=todayIso;calForm=false;calMoveId=null;render();return}
+  if(d.cald){calSel=d.cald;calForm=false;calMoveId=null;render();return}
+  if(d.calform!==undefined){calForm=true;calRep=false;calWeeks=6;render();return}
+  if(d.calcancel!==undefined){calForm=false;render();return}
+  if(d.calrep!==undefined){calDay=$('calday').value;calRep=!calRep;render();return}
+  if(d.calw){calDay=$('calday').value;calWeeks=Math.max(1,Math.min(52,(Math.round(num($('calweeks').value))||calWeeks)+(+d.calw)));render();return}
+  if(d.calsave!==undefined){const v=$('calday').value;if(!v)return;const[planId,dayId]=v.split('|'),n=calRep?Math.max(1,Math.min(52,Math.round(num($('calweeks').value))||1)):1,series=calRep&&n>1?uid():null;let added=0;
+    for(let k=0;k<n;k++){const date=addDays(calSel,7*k);if(cal.some(c=>c.date===date&&c.planId===planId&&c.dayId===dayId))continue;cal.push({id:uid(),date,planId,dayId,ts:Date.now(),...(series?{series}:{})});added++}
+    saveP();calForm=false;calDay=v;if(calSel===todayIso)applyPlanFor(todayIso);const f=findDay(planId,dayId);$('status').textContent=`${f.d.name} er planlagt ${added===1?'den '+shortDate(calSel):added+' gange, hver uge fra '+shortDate(calSel)}`;render();return}
+  if(d.calmove){calMoveId=d.calmove;render();return}
+  if(d.calmovecancel!==undefined){calMoveId=null;render();return}
+  if(d.calmovesave){const c=cal.find(x=>x.id===d.calmovesave),v=$('calmovedate').value;if(c&&v){c.date=v;saveP();calSel=v;calMonth=v.slice(0,7);if(v===todayIso||dateSel()===v)applyPlanFor(dateSel())}calMoveId=null;render();return}
+  if(d.caldel){const c=cal.find(x=>x.id===d.caldel),f=c&&findDay(c.planId,c.dayId);askConfirm(`Er du sikker på, at du vil slette den planlagte træning${f?` "${f.d.name}"`:''} den ${shortDate(c.date)}?`,()=>{cal.splice(cal.indexOf(c),1);saveP();render()});return}
+  if(d.calseries){const c=cal.find(x=>x.id===d.calseries),f=findDay(c.planId,c.dayId),rest=cal.filter(x=>x.series===c.series&&x.date>=c.date);askConfirm(`Er du sikker på, at du vil slette "${f?f.d.name:'træningen'}" den ${shortDate(c.date)} og alle senere datoer i serien (${rest.length} i alt)?`,()=>{rest.forEach(x=>cal.splice(cal.indexOf(x),1));saveP();render()});return}
+  if(d.caltrain){const c=cal.find(x=>x.id===d.caltrain),f=findDay(c.planId,c.dayId);const go=()=>{active=c.dayId;save(KA,active);planBanner=null;$('date').value=todayIso;tab='train';open=draft=null;restoreDraft();render();window.scrollTo({top:0})};
+    if(c.planId===activePlan)go();else askConfirm(`"${f.d.name}" hører til programmet "${f.pl.name}", som ikke er aktivt. Vil du aktivere "${f.pl.name}"?`,()=>{activatePlan(c.planId);go()});return}
+  if(d.banact!==undefined){const c=cal.find(x=>x.id===planBanner.id);activatePlan(c.planId);active=c.dayId;planBanner=null;$('status').textContent=`${curPlan().name} er nu dit aktive program.`;render();return}
+  if(d.banno!==undefined){planBanner=null;render();return}
   if(d.step!==undefined&&draft){const i=+d.i,v=Math.max(0,num(dget(i,d.k))+num(d.step));dset(i,d.k,v);b.parentElement.querySelector('input').value=d.k==='kg'?fmtKg(dget(i,d.k)):dget(i,d.k);persistDraft();return}
   if(d.addset!==undefined&&draft){draft.sets.push(clone(draft.sets[draft.sets.length-1]||{kg:null,reps:null}));persistDraft();render();return}
   if(d.rmset!==undefined&&draft){if(draft.sets.length>1)draft.sets.pop();persistDraft();render();return}
@@ -363,11 +464,11 @@ document.addEventListener('click',ev=>{
   if(d.metric){metric=d.metric;renderHist();return}
   if(d.hex!==undefined){$('filter').value=d.hex;renderHist();window.scrollTo({top:0});return}
   if(d.backall!==undefined){$('filter').value='';renderHist();window.scrollTo({top:0});return}
-  if(d.tab){if(d.tab!==tab){editPlan=activePlan;newPlanForm=false}tab=d.tab;open=editItem=draft=null;planView=false;if(tab==='train')restoreDraft();render();return}
-  if(d.prog){active=d.prog;save(KA,active);open=draft=null;restoreDraft();render();return}
+  if(d.tab){if(d.tab!==tab){editPlan=activePlan;newPlanForm=false;calForm=false;calMoveId=null}tab=d.tab;open=editItem=draft=null;planView=false;if(tab==='train')restoreDraft();render();return}
+  if(d.prog){active=d.prog;save(KA,active);planBanner=null;open=draft=null;restoreDraft();render();return}
   if(d.open){openTrain(open===d.open?null:d.open);render();return}
   if(d.done){const{it}=findItem(d.done),dt=dateSel(),ex=entries.find(e=>e.date===dt&&same(e.name,it.name));
-    const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}const dn=(draft.dnote||'').trim();if(dn)v.note=dn;if(ex){Object.assign(ex,v);if(!dn)delete ex.note}else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now()});
+    const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}const dn=(draft.dnote||'').trim();if(dn)v.note=dn;if(ex){Object.assign(ex,v);if(!dn)delete ex.note}else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now(),dayId:active,planId:activePlan});
     saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
   if(d.undo){entries=entries.filter(e=>e.id!==d.undo);saveE();render();return}
   if(d.opennew!==undefined){open='new';draft={name:'',sets:[{kg:null,reps:null}],pause:90,uni:false,order:'side'};persistDraft();render();$('x-name').focus();return}
@@ -384,7 +485,7 @@ document.addEventListener('click',ev=>{
   /* Program */
   if(d.planview!==undefined){planView=true;newPlanForm=false;editItem=draft=null;render();return}
   if(d.planback!==undefined){planView=false;render();return}
-  if(d.plact){saveP();activePlan=d.plact;editPlan=d.plact;programs=curPlan().days;pActive=null;active=null;save(KA,null);clearDraft();saveP();planView=false;$('status').textContent=`${curPlan().name} er nu dit aktive program.`;render();return}
+  if(d.plact){activatePlan(d.plact);planView=false;$('status').textContent=`${curPlan().name} er nu dit aktive program.`;render();return}
   if(d.plcopy){const i=plans.findIndex(p=>p.id===d.plcopy),c=clone(plans[i]);c.id=uid();c.name='Kopi af '+plans[i].name;c.days.forEach(x=>{x.id=uid();x.items.forEach(y=>y.id=uid())});plans.splice(i+1,0,c);saveP();render();return}
   if(d.pldel){const pl=plans.find(p=>p.id===d.pldel);askConfirm(`Er du sikker på, at du vil slette programmet "${pl.name}"?`,()=>{plans=plans.filter(p=>p.id!==d.pldel);if(editPlan===d.pldel)editPlan=activePlan;saveP();render()});return}
   if(d.plnew!==undefined){newPlanForm=true;render();$('newplan').focus();return}
@@ -408,13 +509,14 @@ document.addEventListener('change',ev=>{
   if(t.dataset.plname){const p=plans.find(x=>x.id===t.dataset.plname);p.name=t.value.trim()||p.name;saveP();render();return}
   if(t.dataset.move&&t.value){const{p,i}=findItem(t.dataset.move);const[it]=p.items.splice(i,1);const to=dayById(t.value);to.items.push(it);saveP();
     $('status').textContent=`${it.name} er flyttet til ${to.name}.`;render();return}
-  if(t.id==='date'){open=draft=null;restoreDraft();render();return}
+  if(t.id==='date'){open=draft=null;applyPlanFor(dateSel());restoreDraft();render();return}
+  if(t.id==='calday'){calDay=t.value;return}
   if(t.id==='filter'){renderHist();return}
 });
 
 /* ---------- backup ---------- */
 $('exp').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify({version:4,plans,activePlan,bank,entries},null,1)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({version:5,plans,activePlan,bank,cal,entries},null,1)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='traeningslog-'+todayIso+'.json';
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 });
@@ -429,6 +531,7 @@ $('imp').addEventListener('change',async()=>{
       saveP();const blank=plans.length===1&&!plans[0].days.length&&!bank.length;if(blank)plans=[];const mp=new Map(plans.map(p=>[p.id,p]));const inPl=data.plans.filter(p=>p&&p.id&&Array.isArray(p.days));
       inPl.forEach(p=>{p.days.forEach(x=>(x.items=x.items||[]).forEach(norm));mp.set(p.id,p)});plans=[...mp.values()];
       if(Array.isArray(data.bank)){const mb=new Map(bank.map(x=>[x.id,x]));data.bank.filter(x=>x&&x.id&&x.name).forEach(x=>mb.set(x.id,norm(x)));bank.splice(0,bank.length,...mb.values())}
+      if(Array.isArray(data.cal)){const mc=new Map(cal.map(x=>[x.id,x]));data.cal.filter(x=>x&&x.id&&x.date).forEach(x=>mc.set(x.id,x));cal.splice(0,cal.length,...mc.values())}
       if(!plans.length)plans=[{id:uid(),name:'Mit program',days:[]}];if(blank||!plans.find(p=>p.id===activePlan))activePlan=plans.find(p=>p.id===data.activePlan)?data.activePlan:plans[0].id;
       editPlan=activePlan;programs=curPlan().days;what=`${inPl.length} ${inPl.length===1?'program':'programmer'}`;
     }else{
@@ -444,7 +547,7 @@ $('imp').addEventListener('change',async()=>{
 
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-restoreDraft();render();
+applyPlanFor(dateSel());restoreDraft();render();
 }
 </script>
 </body>
