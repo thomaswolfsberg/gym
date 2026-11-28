@@ -106,9 +106,22 @@ button.bankchip{border-style:dashed}
 .dlgbox p{margin:0 0 16px;font-size:17px;font-weight:600}
 .dlgbox .row button{flex:1 1 0;min-height:52px}
 .grip{touch-action:none;cursor:grab;min-width:44px;min-height:44px;display:grid;place-items:center;color:var(--mut);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-li.dragging{box-shadow:0 10px 28px rgba(0,0,0,.28);position:relative;z-index:5;background:var(--bg)}
-li.dragging .grip{cursor:grabbing;color:var(--ink)}
-li.dragging .ed{display:none}
+.drag-ghost{position:fixed;z-index:20;pointer-events:none;margin:0;list-style:none;background:var(--bg);border-radius:14px;box-shadow:0 14px 36px rgba(0,0,0,.38);transform:scale(1.02);opacity:.97}
+.drag-ghost.item{padding:10px 12px;border:2px solid var(--line)}
+.drag-ghost .ed{display:none}.drag-ghost .grip{color:var(--ink)}
+li.drag-ph{border:2px dashed var(--mut)!important;border-radius:14px;background:none!important}
+li.drag-ph>*{visibility:hidden}li.drag-ph .ed{display:none}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.thumb{width:64px;height:64px;padding:0;border:0;border-radius:10px;overflow:hidden;background:var(--field);cursor:zoom-in}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumbw{position:relative}
+.rmph{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:2px solid var(--bg);background:var(--ink);color:var(--bg);font:700 14px Archivo,sans-serif;cursor:pointer;padding:0}
+.addph{min-height:64px}
+.viewer{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:16px}
+.viewer img{max-width:100%;max-height:82vh;border-radius:8px}
+.vclose{position:absolute;top:max(12px,env(safe-area-inset-top));right:12px;width:48px;height:48px;border-radius:50%;border:0;background:#fff;color:#111;font:700 20px Archivo,sans-serif;cursor:pointer}
+.vnav{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));left:0;right:0;display:flex;justify-content:center;align-items:center;gap:18px;color:#fff;font-size:15px}
+.vnav button{width:52px;height:52px;border-radius:50%;border:0;background:#fff;color:#111;font:700 24px Archivo,sans-serif;cursor:pointer}
 .calhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
 .calhead b{font-size:20px;font-weight:800;font-stretch:108%}
 .cg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
@@ -175,6 +188,8 @@ li.dragging .ed{display:none}
 
 
   <p class="status" id="status"></p>
+  <input type="file" id="photoIn" accept="image/*" multiple hidden>
+  <div class="viewer" id="viewer" hidden><img id="viewImg" alt="Foto"><button class="vclose" type="button" data-vclose aria-label="Luk">✕</button><div class="vnav" id="vnav"><button type="button" data-vnav="-1" aria-label="Forrige">‹</button><span id="vcount"></span><button type="button" data-vnav="1" aria-label="Næste">›</button></div></div>
   <div class="dlg" id="dlg" hidden><div class="dlgbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgText"><p id="dlgText"></p><div class="row"><button class="primary" type="button" data-dlgyes>Ja</button><button class="ghost" type="button" id="dlgNo" data-dlgno>Nej</button></div></div></div>
 </div>
 
@@ -217,6 +232,20 @@ const saveE=()=>save(KE,entries);
 const saveP=()=>{curPlan().days=programs;save(KPL,{plans,activePlan,bank,cal})};
 saveP();
 
+/* ---------- fotos (IndexedDB) ---------- */
+const photoCache={};let photoOK=true;
+const idb=(()=>{let p;const open=()=>p||(p=new Promise((res,rej)=>{const r=indexedDB.open('traeningslog',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+  const tx=(mode,fn)=>open().then(db=>new Promise((res,rej)=>{const t=db.transaction('photos',mode);fn(t.objectStore('photos'));t.oncomplete=()=>res();t.onerror=()=>rej(t.error)}));
+  return{put:(k,v)=>tx('readwrite',st=>st.put(v,k)),del:k=>tx('readwrite',st=>st.delete(k)),
+    all:()=>open().then(db=>new Promise((res,rej)=>{const out={},r=db.transaction('photos').objectStore('photos').openCursor();r.onsuccess=()=>{const c=r.result;if(c){out[c.key]=c.value;c.continue()}else res(out)};r.onerror=()=>rej(r.error)}))}})();
+const usedPhotos=()=>{const u=new Set();const add=it=>(it.photos||[]).forEach(id=>u.add(id));plans.forEach(pl=>pl.days.forEach(d=>d.items.forEach(add)));bank.forEach(add);const dr=load(KD,null);if(dr&&dr.draft)add(dr.draft);return u};
+async function shrink(file){const url=URL.createObjectURL(file);try{const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+  const M=1280,sc=Math.min(1,M/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.75)}finally{URL.revokeObjectURL(url)}}
+const thumbs=ids=>{ids=(ids||[]).filter(id=>photoCache[id]);return ids.length?`<div class="thumbs">${ids.map(id=>`<button type="button" class="thumb" data-photo="${id}" data-set="${ids.join(',')}"><img src="${photoCache[id]}" alt="Foto af set up"></button>`).join('')}</div>`:''};
+let viewSet=[],viewIdx=0;
+function showPhoto(){$('viewImg').src=photoCache[viewSet[viewIdx]]||'';$('vnav').hidden=viewSet.length<2;$('vcount').textContent=`${viewIdx+1} af ${viewSet.length}`;$('viewer').hidden=false}
+
 const todayIso=iso(new Date());
 let tab='train',open=null,editItem=null,sure=null,draft=null,planView=false;
 $('today').textContent=new Date().toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'});
@@ -237,6 +266,7 @@ const editor=mode=>`${mode==='prog'?`<div class="chips"><button type="button" da
   ${draft.uni&&draft.order==='alt'?`<div class="pz"><label>Pause ved hvert sideskift (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`:draft.uni?`<div class="pz"><label>Pause mellem sæt (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div><div class="pz"><label>Pause mellem sider (sek)</label>${stp(-2,'pauseSide',draft.pauseSide,15,'numeric')}</div>`
   :`<div class="pz"><label>Pause (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`}`;
 const noteField=(k,lbl,add)=>draft[k]||draft['_'+k]?`<div><label for="n-${k}">${lbl}</label><textarea id="n-${k}" data-k="${k}" placeholder="Skriv en note …">${esc(draft[k]||'')}</textarea></div>`:`<button class="ghost addnote" type="button" data-addnote="${k}">+ ${add}</button>`;
+const photoField=()=>`<div><label>Fotos</label><div class="thumbs">${(draft.photos||[]).filter(id=>photoCache[id]).map(id=>`<span class="thumbw"><button type="button" class="thumb" data-photo="${id}" data-set="${(draft.photos||[]).join(',')}"><img src="${photoCache[id]}" alt="Foto"></button><button type="button" class="rmph" data-rmphoto="${id}" aria-label="Slet foto">✕</button></span>`).join('')}<button class="ghost addph" type="button" data-addphoto>+ Tilføj foto</button></div></div>`;
 const nameField=(id,ph)=>`<div><label for="${id}">Øvelse</label><input id="${id}" data-k="name" list="${id}-l" placeholder="${ph}" value="${esc(draft.name)}" autocomplete="off"><datalist id="${id}-l">${names().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>`;
 const dget=(i,k)=>i===-1?draft.pause:i===-2?draft.pauseSide:draft.sets[i][k];
 const dset=(i,k,v)=>{v=k==='kg'?Math.round(v*100)/100:Math.round(v);if(i===-1)draft.pause=v;else if(i===-2)draft.pauseSide=v;else draft.sets[i][k]=v};
@@ -261,11 +291,12 @@ function renderTrain(){
       <span>${done?nums(done)+' <span class="meta">· udført</span>':nums(it)+' <span class="meta">· '+pzTxt(it)+'</span>'}</span>
       <span class="meta">${lastLine(last)}</span></button>
       <div class="ctools"><span class="grip" data-grip="${it.id}" role="button" aria-label="Træk for at flytte"><svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M1 1h18M1 7h18M1 13h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></div></div>
+      ${(it.photos||[]).some(id=>photoCache[id])?`<div style="padding:0 14px 12px 54px">${thumbs(it.photos)}</div>`:''}
       ${open===it.id?`<div class="ed">${editor('train')}${noteField('dnote','Note til i dag','Tilføj note')}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
   }).join('');
   const other=today.filter(e=>!prog||!prog.items.some(it=>same(it.name,e.name)));
   let form='';
-  if(open==='new'&&prog)form=`<div class="card"><div class="ed"><p class="meta" style="margin:0">Ny øvelse i <b>${esc(prog.name)}</b>. Den bliver sat ind efter den sidste øvelse, du har lavet i dag.</p>${nameField('x-name','F.eks. Pallof press')}${editor('prog')}${noteField('note','Fast note','Tilføj fast note')}<div class="row"><button class="primary" type="button" data-savenew>Tilføj til programmet</button><button class="ghost" type="button" data-close>Annullér</button></div></div></div>`;
+  if(open==='new'&&prog)form=`<div class="card"><div class="ed"><p class="meta" style="margin:0">Ny øvelse i <b>${esc(prog.name)}</b>. Den bliver sat ind efter den sidste øvelse, du har lavet i dag.</p>${nameField('x-name','F.eks. Pallof press')}${editor('prog')}${noteField('note','Fast note','Tilføj fast note')}${photoField()}<div class="row"><button class="primary" type="button" data-savenew>Tilføj til programmet</button><button class="ghost" type="button" data-close>Annullér</button></div></div></div>`;
   else if(open==='extra')form=`<div class="card"><div class="ed"><p class="meta" style="margin:0">Ekstra øvelse, der kun gælder i dag.</p>${nameField('x-name','F.eks. Biceps curl')}${editor('extra')}${noteField('dnote','Note til i dag','Tilføj note')}<div class="row"><button class="primary" type="button" data-saveextra>Gem</button><button class="ghost" type="button" data-close>Annullér</button></div></div></div>`;
   else form=`<div class="two">${prog?'<button class="ghost add" type="button" data-opennew>+ Ny øvelse</button>':''}<button class="ghost add" type="button" data-openextra>+ Ekstra øvelse</button></div>`;
   $('extra').innerHTML=(other.length?`<h2>Ekstra øvelser</h2><ul>${other.map(e=>`<li class="e"><div><div class="name">${esc(e.name)}</div>${nums(e)} <span class="meta">· ${pzTxt(e)}</span></div><button class="ghost ${sure===e.id?'sure':''}" type="button" data-delentry="${e.id}">${sure===e.id?'Slet?':'Slet'}</button></li>`).join('')}</ul>`:'')+form;
@@ -287,10 +318,10 @@ function renderProg(){
     :`<div class="ptop"><input aria-label="Navn på dag" data-pname="${p.id}" value="${esc(p.name)}">
       <button class="ib" type="button" data-pup="${p.id}" ${pi===0?'disabled':''} aria-label="Flyt dag op">↑</button>
       <button class="ghost ${sure===p.id?'sure':''}" type="button" data-pdel="${p.id}">${sure===p.id?'Slet?':'Slet'}</button></div>`}
-    <ul>${p.items.length?p.items.map((it,i)=>`<li class="item" data-id="${it.id}"><div><div class="name">${esc(it.name)}</div>${it.note?`<div class="fnote">${esc(it.note)}</div>`:''}${nums(it)} <span class="meta">· ${pzTxt(it)}</span>
+    <ul>${p.items.length?p.items.map((it,i)=>`<li class="item" data-id="${it.id}"><div><div class="name">${esc(it.name)}</div>${it.note?`<div class="fnote">${esc(it.note)}</div>`:''}${thumbs(it.photos)}${nums(it)} <span class="meta">· ${pzTxt(it)}</span>
       ${targets.length?`<select class="move" data-move="${it.id}" aria-label="Flyt til"><option value="">Flyt til …</option>${targets.map(q=>`<option value="${q.id}">${esc(q.name)}</option>`).join('')}</select>`:''}</div>
       <div class="tools"><button class="ib" type="button" data-edit="${it.id}">Ret</button><span class="grip" data-grip="${it.id}" role="button" aria-label="Træk for at flytte"><svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M1 1h18M1 7h18M1 13h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></div>
-      ${editItem===it.id?`<div class="ed">${nameField('p-name','')}${editor('prog')}${noteField('note','Fast note','Tilføj fast note')}<div class="row"><button class="primary" type="button" data-saveitem="${it.id}">Gem</button><button class="ghost" type="button" data-close>Annullér</button><button class="ghost ${sure===it.id?'sure':''}" type="button" data-delitem="${it.id}">${sure===it.id?'Slet?':'Slet'}</button></div></div>`:''}
+      ${editItem===it.id?`<div class="ed">${nameField('p-name','')}${editor('prog')}${noteField('note','Fast note','Tilføj fast note')}${photoField()}<div class="row"><button class="primary" type="button" data-saveitem="${it.id}">Gem</button><button class="ghost" type="button" data-close>Annullér</button><button class="ghost ${sure===it.id?'sure':''}" type="button" data-delitem="${it.id}">${sure===it.id?'Slet?':'Slet'}</button></div></div>`:''}
     </li>`).join(''):`<li class="empty">${isBank?'Banken er tom.':'Ingen øvelser på denne dag endnu.'}</li>`}</ul>
     <button class="ghost add" type="button" data-additem="${p.id}">+ Tilføj øvelse${isBank?' til banken':''}</button></div>`)
   +`<button class="ghost add" type="button" data-newprog>+ Ny dag</button>`;
@@ -407,7 +438,7 @@ function openTrain(id){open=id;draft=null;if(!id){clearDraft();return}const{it}=
   draft={name:it.name,dnote:td&&td.note||'',sets,pause:src.pause,uni:!!it.uni,pauseSide:src.pauseSide??it.pauseSide??180,order:it.order||src.order||'side'};persistDraft()}
 document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;const k=t.dataset.k;
   if(k==='name'){draft.name=t.value;const m=tab==='train'&&(open==='new'||open==='extra')&&bank.find(b=>same(b.name,t.value));
-    if(m&&draft._bank!==m.id){Object.assign(draft,{sets:clone(m.sets),pause:m.pause,uni:!!m.uni,pauseSide:m.pauseSide??180,order:m.order||'side',note:m.note||'',_bank:m.id});render();const f=$('x-name');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}}}
+    if(m&&draft._bank!==m.id){Object.assign(draft,{sets:clone(m.sets),pause:m.pause,uni:!!m.uni,pauseSide:m.pauseSide??180,order:m.order||'side',note:m.note||'',photos:clone(m.photos||[]),_bank:m.id});render();const f=$('x-name');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}}}
   else if(k==='note'||k==='dnote')draft[k]=t.value;
   else if(t.value.trim()===''&&+t.dataset.i>=0)draft.sets[+t.dataset.i][k]=null;
   else dset(+t.dataset.i,k,num(t.value));
@@ -422,10 +453,13 @@ function dragReorder(){const{li,ul,y}=drag,sibs=[...ul.children].filter(x=>x!==l
   const last=sibs[sibs.length-1];if(last&&last.nextElementSibling!==li){last.after(li);drag.moved=true}}
 function dragTick(){if(!drag)return;if(drag.y<80)window.scrollBy(0,-9);else if(drag.y>innerHeight-80)window.scrollBy(0,9);dragReorder();drag.raf=requestAnimationFrame(dragTick)}
 document.addEventListener('pointerdown',ev=>{const g=ev.target.closest('.grip');if(!g)return;ev.preventDefault();const li=g.closest('li');
-  drag={li,ul:li.parentElement,id:g.dataset.grip,y:ev.clientY,pid:ev.pointerId,moved:false};li.classList.add('dragging');
+  const r=li.getBoundingClientRect(),ghost=li.cloneNode(true);ghost.classList.add('drag-ghost');ghost.style.left=r.left+'px';ghost.style.width=r.width+'px';document.body.appendChild(ghost);
+  const off=Math.min(ev.clientY-r.top,ghost.getBoundingClientRect().height-10);ghost.style.top=(ev.clientY-off)+'px';
+  li.classList.add('drag-ph');li.style.height=ghost.getBoundingClientRect().height+'px';
+  drag={li,ul:li.parentElement,id:g.dataset.grip,y:ev.clientY,pid:ev.pointerId,moved:false,ghost,off};
   try{g.setPointerCapture(ev.pointerId)}catch(e){}try{navigator.vibrate&&navigator.vibrate(12)}catch(e){}drag.raf=requestAnimationFrame(dragTick)});
-document.addEventListener('pointermove',ev=>{if(drag&&ev.pointerId===drag.pid){drag.y=ev.clientY;ev.preventDefault()}},{passive:false});
-const dragEnd=ev=>{if(!drag||ev.pointerId!==drag.pid)return;cancelAnimationFrame(drag.raf);const{li,ul,id,moved}=drag;drag=null;li.classList.remove('dragging');
+document.addEventListener('pointermove',ev=>{if(drag&&ev.pointerId===drag.pid){drag.y=ev.clientY;drag.ghost.style.top=(ev.clientY-drag.off)+'px';ev.preventDefault()}},{passive:false});
+const dragEnd=ev=>{if(!drag||ev.pointerId!==drag.pid)return;cancelAnimationFrame(drag.raf);const{li,ul,id,moved,ghost}=drag;drag=null;ghost.remove();li.classList.remove('drag-ph');li.style.height='';
   if(moved){const ids=[...ul.children].map(x=>x.dataset.id).filter(Boolean),{p}=findItem(id);if(p){p.items.sort((a,b)=>ids.indexOf(a.id)-ids.indexOf(b.id));saveP()}}render()};
 document.addEventListener('pointerup',dragEnd);document.addEventListener('pointercancel',dragEnd);
 let dlgFn=null;
@@ -437,6 +471,11 @@ document.addEventListener('click',ev=>{
   const b=ev.target.closest('button');if(!b)return;const d=b.dataset;
   if(d.dlgyes!==undefined){const f=dlgFn;closeDlg();if(f)f();return}
   if(d.dlgno!==undefined){closeDlg();return}
+  if(d.photo){viewSet=(d.set||d.photo).split(',').filter(id=>photoCache[id]);viewIdx=Math.max(0,viewSet.indexOf(d.photo));showPhoto();return}
+  if(d.vnav){viewIdx=(viewIdx+(+d.vnav)+viewSet.length)%viewSet.length;showPhoto();return}
+  if(d.vclose!==undefined){$('viewer').hidden=true;return}
+  if(d.addphoto!==undefined&&draft){if(!photoOK){$('status').textContent='Fotos kan ikke gemmes på denne telefon.';return}$('photoIn').click();return}
+  if(d.rmphoto&&draft){const id=d.rmphoto;askConfirm('Er du sikker på, at du vil slette fotoet?',()=>{draft.photos=(draft.photos||[]).filter(x=>x!==id);persistDraft();render()});return}
   /* Kalender */
   if(d.calnav){const[y,m]=calMonth.split('-').map(Number),x=new Date(y,m-1+(+d.calnav),1);calMonth=x.getFullYear()+'-'+pad(x.getMonth()+1);render();return}
   if(d.caltoday!==undefined){calMonth=todayIso.slice(0,7);calSel=todayIso;calForm=false;calMoveId=null;render();return}
@@ -471,13 +510,13 @@ document.addEventListener('click',ev=>{
   if(d.open){openTrain(open===d.open?null:d.open);render();return}
   if(d.done){const{it}=findItem(d.done),dt=dateSel(),ex=entries.find(e=>e.date===dt&&same(e.name,it.name));
     const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}const dn=(draft.dnote||'').trim();if(dn)v.note=dn;if(ex){Object.assign(ex,v);if(!dn)delete ex.note}else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now(),dayId:active,planId:activePlan});
-    saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
+    it.sets=clone(draft.sets);saveP();saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
   if(d.undo){entries=entries.filter(e=>e.id!==d.undo);saveE();render();return}
   if(d.opennew!==undefined){open='new';draft={name:'',sets:[{kg:null,reps:null}],pause:90,uni:false,order:'side'};persistDraft();render();$('x-name').focus();return}
   if(d.openextra!==undefined){open='extra';draft={name:'',sets:[{kg:null,reps:null}],pause:90};persistDraft();render();$('x-name').focus();return}
   if(d.savenew!==undefined){const n=draft.name.trim();if(!n){$('x-name').focus();return}
     const prog=programs.find(p=>p.id===active),m=draft._bank&&bank.find(x=>x.id===draft._bank&&same(x.name,n)),it=m||{id:uid()};
-    Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;
+    Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;if((draft.photos||[]).length)it.photos=clone(draft.photos);else delete it.photos;
     if(m)bank.splice(bank.indexOf(m),1);
     prog.items.splice(doneIdx(prog)+1,0,it);saveP();
     $('status').textContent=`${n} er lagt ind i ${prog.name}${m?' fra øvelsesbanken':''}.`;openTrain(it.id);render();return}
@@ -502,7 +541,7 @@ document.addEventListener('click',ev=>{
   if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:null,reps:null}],pause:90};dayById(d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
   if(d.up||d.down){const{p,i}=findItem(d.up||d.down),j=d.up?i-1:i+1;if(p&&j>=0&&j<p.items.length){[p.items[i],p.items[j]]=[p.items[j],p.items[i]];saveP()}render();return}
   if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;if(draft&&!draft.order)draft.order='side';render();return}
-  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});saveP();editItem=null;render();return}
+  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;if((draft.photos||[]).length)it.photos=clone(draft.photos);else delete it.photos;Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});saveP();editItem=null;render();return}
   if(d.delitem){const{it}=findItem(d.delitem);askConfirm(`Er du sikker på, at du vil slette øvelsen "${it.name}"? Din historik for øvelsen bliver ikke slettet.`,()=>{const{p,i}=findItem(d.delitem);if(p){p.items.splice(i,1);saveP()}editItem=draft=null;render()});return}
 });
 document.addEventListener('change',ev=>{
@@ -518,11 +557,16 @@ document.addEventListener('change',ev=>{
 
 /* ---------- backup ---------- */
 $('exp').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify({version:5,plans,activePlan,bank,cal,entries},null,1)],{type:'application/json'});
+  const photos={};usedPhotos().forEach(id=>{if(photoCache[id])photos[id]=photoCache[id]});
+  const blob=new Blob([JSON.stringify({version:6,plans,activePlan,bank,cal,entries,photos},null,1)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='traeningslog-'+todayIso+'.json';
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 });
 $('impBtn').addEventListener('click',()=>$('imp').click());
+$('viewer').addEventListener('click',ev=>{if(ev.target===$('viewer')||ev.target===$('viewImg'))$('viewer').hidden=true});
+$('photoIn').addEventListener('change',async()=>{const files=[...$('photoIn').files];$('photoIn').value='';if(!files.length||!draft)return;const dr=draft;$('status').textContent='Gemmer foto …';
+  let n=0;for(const f of files){try{const url=await shrink(f),id=uid();await idb.put(id,url);photoCache[id]=url;(dr.photos=dr.photos||[]).push(id);n++}catch(e){}}
+  $('status').textContent=n?(n===1?'Foto tilføjet. Husk at trykke Gem.':n+' fotos tilføjet. Husk at trykke Gem.'):'Fotoet kunne ikke gemmes.';if(draft===dr){persistDraft();render()}});
 $('imp').addEventListener('change',async()=>{
   const file=$('imp').files[0];if(!file)return;
   try{
@@ -541,6 +585,7 @@ $('imp').addEventListener('change',async()=>{
       const mp=new Map(programs.map(p=>[p.id,p]));inP.filter(p=>p&&p.id&&Array.isArray(p.items)).forEach(p=>mp.set(p.id,p));programs.splice(0,programs.length,...mp.values());programs.forEach(p=>p.items.forEach(norm));
       what=`${inP.length} dage`;
     }
+    if(!Array.isArray(data)&&data.photos&&typeof data.photos==='object')for(const[id,url]of Object.entries(data.photos)){if(typeof url==='string'&&url.startsWith('data:image/')){photoCache[id]=url;try{await idb.put(id,url)}catch(e){}}}
     saveE();saveP();render();
     $('status').textContent=`Backup hentet: ${what} og ${inE.length} registrerede øvelser.`;
   }catch(e){$('status').textContent='Filen kunne ikke læses som backup.'}
@@ -550,6 +595,7 @@ $('imp').addEventListener('change',async()=>{
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 applyPlanFor(dateSel());restoreDraft();render();
+idb.all().then(m=>{Object.assign(photoCache,m);const u=usedPhotos();Object.keys(m).forEach(id=>{if(!u.has(id)){delete photoCache[id];idb.del(id).catch(()=>{})}});if(Object.keys(photoCache).length)render()}).catch(()=>{photoOK=false});
 }
 </script>
 </body>
