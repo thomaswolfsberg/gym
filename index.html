@@ -97,6 +97,14 @@ button.bankchip{border-style:dashed}
 .hname{background:none;border:0;padding:4px 0;font:inherit;font-weight:700;font-size:17px;color:var(--ink);text-align:left;text-decoration:underline;text-decoration-color:var(--mut);text-underline-offset:4px;cursor:pointer;min-height:36px}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px}.two .add{margin-top:0}
 .back{margin-bottom:12px}
+.ver{font-size:12px;color:var(--mut);margin:18px 0 0;text-align:center}
+.flag{color:var(--acc);font-size:14px;font-weight:600}
+.alist{margin:0}.alist li{border-bottom:1px solid var(--line)}
+.arow{display:grid;grid-template-columns:14px minmax(0,1fr);gap:10px;align-items:start;width:100%;background:none;border:0;padding:10px 0;text-align:left;color:var(--ink);font:inherit;cursor:pointer}
+.adot{width:12px;height:12px;border-radius:50%;margin-top:5px;background:var(--line)}.adot.warn{background:var(--acc)}.adot.ok{background:var(--ok)}
+.amore summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600}
+.adet{margin:4px 0 10px;font-size:15px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .seg{margin-bottom:16px}.seg button{flex:1}
 #dev{margin-top:4px}
 .editbar{background:var(--field);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:grid;gap:10px;font-size:16px}
@@ -167,9 +175,12 @@ li.drag-ph>*{visibility:hidden}li.drag-ph .ed{display:none}
     <div class="chips seg"><button type="button" data-calview="cal" aria-pressed="true">Kalender</button><button type="button" data-calview="dev" aria-pressed="false">Udvikling</button></div>
     <div id="cal"></div>
     <div id="dev" hidden>
-      <label for="filter">Øvelse</label>
+      <div id="analysis"></div>
+      <h2 style="margin:22px 0 6px">Øvelse</h2>
+      <label for="filter" class="vh">Øvelse</label>
       <select id="filter"></select>
       <div id="chartBox" hidden>
+        <p class="adet" id="adet"></p>
         <div class="chips" id="mchips"></div>
         <p class="msum" id="msum"></p>
         <div class="fig"><svg id="chart" role="img" aria-label="Udviklingsgraf"></svg></div>
@@ -188,6 +199,7 @@ li.drag-ph>*{visibility:hidden}li.drag-ph .ed{display:none}
 
 
   <p class="status" id="status"></p>
+  <p class="ver" id="ver"></p>
   <input type="file" id="photoIn" accept="image/*" multiple hidden>
   <div class="viewer" id="viewer" hidden><img id="viewImg" alt="Foto"><button class="vclose" type="button" data-vclose aria-label="Luk">✕</button><div class="vnav" id="vnav"><button type="button" data-vnav="-1" aria-label="Forrige">‹</button><span id="vcount"></span><button type="button" data-vnav="1" aria-label="Næste">›</button></div></div>
   <div class="dlg" id="dlg" hidden><div class="dlgbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgText"><p id="dlgText"></p><div class="row"><button class="primary" type="button" data-dlgyes>Ja</button><button class="ghost" type="button" id="dlgNo" data-dlgno>Nej</button></div></div></div>
@@ -207,9 +219,9 @@ const num=v=>parseFloat(String(v).replace(',','.'))||0;
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const same=(a,b)=>String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
 const clone=o=>JSON.parse(JSON.stringify(o));
-const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets||1));o.sets=Array.from({length:n},()=>({kg:+o.kg||0,reps:Math.round(+o.reps||0)}))}delete o.kg;delete o.reps;o.pause=Math.round(+o.pause||0);o.uni=!!o.uni;if(o.uni)o.pauseSide=o.pauseSide==null?180:Math.round(+o.pauseSide||0);return o};
+const norm=o=>{if(!Array.isArray(o.sets)){const n=Math.max(1,Math.round(+o.sets||1));o.sets=Array.from({length:n},()=>({kg:+o.kg||0,reps:Math.round(+o.reps||0)}))}delete o.kg;delete o.reps;o.pause=Math.round(+o.pause||0);o.uni=!!o.uni;if(o.unit!=='sec')delete o.unit;if(o.uni)o.pauseSide=o.pauseSide==null?180:Math.round(+o.pauseSide||0);return o};
 const sumTxt=(v,html)=>{const s=v.sets||[];if(!s.length)return'';const k=x=>x==null?'–':+x?fmtKg(x)+(html?' <small>kg</small>':' kg'):'BW';const r=x=>x==null?'–':x;
-  return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>r(x.reps)).join(' / ')} ${html?'<small>reps'+(v.uni?' pr. side':'')+'</small>':'reps'+(v.uni?' pr. side':'')}`:s.map(x=>(x.kg==null?'–':+x.kg?fmtKg(x.kg):'BW')+'×'+r(x.reps)).join(' / ')+(v.uni&&!s.every(x=>x.kg===s[0].kg)?' pr. side':'')};
+  return s.every(x=>x.kg===s[0].kg)?`${k(s[0].kg)} · ${s.map(x=>r(x.reps)).join(' / ')} ${html?'<small>'+(v.unit==='sec'?'sek':'reps')+(v.uni?' pr. side':'')+'</small>':(v.unit==='sec'?'sek':'reps')+(v.uni?' pr. side':'')}`:s.map(x=>(x.kg==null?'–':+x.kg?fmtKg(x.kg):'BW')+'×'+r(x.reps)+(v.unit==='sec'?' s':'')).join(' / ')+(v.uni&&!s.every(x=>x.kg===s[0].kg)?' pr. side':'')};
 const ORD={side:'én side ad gangen',alt:'skift side hvert sæt'};
 const pzTxt=(v,plain)=>{const w=t=>plain?t:`<span style="white-space:nowrap">${t}</span>`;return v.uni&&v.order==='alt'?w(`pause ${fmtPause(v.pause)} ved hvert sideskift`):v.uni?w(`pause ${fmtPause(v.pause)} mellem sæt`)+' · '+w(`${fmtPause(v.pauseSide)} mellem sider`):w(`pause ${fmtPause(v.pause)}`)};
 const nums=v=>`<span class="nums">${sumTxt(v,true)}</span>`;
@@ -246,6 +258,8 @@ const thumbs=ids=>{ids=(ids||[]).filter(id=>photoCache[id]);return ids.length?`<
 let viewSet=[],viewIdx=0;
 function showPhoto(){$('viewImg').src=photoCache[viewSet[viewIdx]]||'';$('vnav').hidden=viewSet.length<2;$('vcount').textContent=`${viewIdx+1} af ${viewSet.length}`;$('viewer').hidden=false}
 
+const APP_VERSION='14.1',APP_DATE='28. nov. 2026';
+$('ver').textContent=`Version ${APP_VERSION} · ${APP_DATE}`;
 const todayIso=iso(new Date());
 let tab='train',open=null,editItem=null,sure=null,draft=null,planView=false;
 $('today').textContent=new Date().toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'});
@@ -259,9 +273,14 @@ function restoreDraft(){if(open)return;if(!programs.find(p=>p.id===active))activ
 
 /* ---------- felter ---------- */
 const stp=(i,k,v,st,m)=>`<div class="step"><button type="button" data-step="-${st}" data-i="${i}" data-k="${k}" aria-label="Mindre">−</button><input data-i="${i}" data-k="${k}" inputmode="${m}" aria-label="${k==='kg'?'Vægt':k==='reps'?'Reps':'Pause'}" value="${v==null||v===''?'':k==='kg'?fmtKg(v):Math.round(+v||0)}"><button type="button" data-step="${st}" data-i="${i}" data-k="${k}" aria-label="Mere">+</button></div>`;
-const editor=mode=>`${mode==='prog'?`<div class="chips"><button type="button" data-uni aria-pressed="${!!draft.uni}">${draft.uni?'✓ ':''}Unilateral</button></div>`:''}
+const FOCUS={auto:'Gæt ud fra reps',str:'Styrke',hyp:'Hypertrofi',end:'Muskulær udholdenhed',pow:'Power / eksplosivitet',stab:'Stabilitet / motorisk kontrol',mob:'Mobilitet',tech:'Teknik',plyo:'Plyometri / spring'};
+const GOAL={po:'Progressiv overload',maint:'Vedligeholdelse',rehab:'Genoptræning',deload:'Aflastning (deload)'};
+const editor=mode=>`${mode==='prog'?`<div style="display:grid;gap:12px"><div><label for="f-focus">Fokus</label><select id="f-focus">${Object.entries(FOCUS).map(([k,v])=>`<option value="${k}" ${(draft.focus||'auto')===k?'selected':''}>${v}</option>`).join('')}</select></div>
+  <div><label for="f-goal">Mål</label><select id="f-goal"><option value="" ${!GOAL[draft.goal]?'selected':''}>Standard (progressiv overload)</option>${Object.entries(GOAL).map(([k,v])=>`<option value="${k}" ${draft.goal===k?'selected':''}>${v}</option>`).join('')}</select></div></div>
+  <div><label>Måles i</label><div class="chips" style="margin:0"><button type="button" data-unit="reps" aria-pressed="${draft.unit!=='sec'}">Reps</button><button type="button" data-unit="sec" aria-pressed="${draft.unit==='sec'}">Tid (sek)</button></div></div>
+  <div class="chips"><button type="button" data-uni aria-pressed="${!!draft.uni}">${draft.uni?'✓ ':''}Unilateral</button></div>`:''}
   ${(mode==='train'||mode==='prog')&&draft.uni?`<div><label>Rækkefølge</label><div class="chips">${Object.keys(ORD).map(k=>`<button type="button" data-order="${k}" aria-pressed="${draft.order===k}">${ORD[k][0].toUpperCase()+ORD[k].slice(1)}</button>`).join('')}</div></div>`:''}
-  <div class="sets"><div class="sh"><span>Sæt</span><span>Vægt (kg)</span><span>${draft.uni?'Reps pr. side':'Reps'}</span></div>${draft.sets.map((x,i)=>`<div class="sr"><span class="sn">${i+1}</span>${stp(i,'kg',x.kg,2.5,'decimal')}${stp(i,'reps',x.reps,1,'numeric')}</div>`).join('')}
+  <div class="sets"><div class="sh"><span>Sæt</span><span>Vægt (kg)</span><span>${(draft.unit==='sec'?'Sek':'Reps')+(draft.uni?' pr. side':'')}</span></div>${draft.sets.map((x,i)=>`<div class="sr"><span class="sn">${i+1}</span>${stp(i,'kg',x.kg,2.5,'decimal')}${stp(i,'reps',x.reps,draft.unit==='sec'?5:1,'numeric')}</div>`).join('')}
   <div class="row"><button class="ghost" type="button" data-addset>+ Sæt</button>${draft.sets.length>1?'<button class="ghost" type="button" data-rmset>− Sæt</button>':''}</div></div>
   ${draft.uni&&draft.order==='alt'?`<div class="pz"><label>Pause ved hvert sideskift (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`:draft.uni?`<div class="pz"><label>Pause mellem sæt (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div><div class="pz"><label>Pause mellem sider (sek)</label>${stp(-2,'pauseSide',draft.pauseSide,15,'numeric')}</div>`
   :`<div class="pz"><label>Pause (sek)</label>${stp(-1,'pause',draft.pause,15,'numeric')}</div>`}`;
@@ -285,11 +304,11 @@ function renderTrain(){
   if(!prog){$('trainList').innerHTML='<li class="empty">Du har ingen dage i dit program endnu. Opret dem under <b>Program</b>.</li>'}
   else if(!prog.items.length){$('trainList').innerHTML='<li class="empty">Der er ingen øvelser på denne dag endnu. Tryk <b>+ Ny øvelse</b> nedenfor, eller tilføj dem under <b>Program</b>.</li>'}
   else $('trainList').innerHTML=prog.items.map((it,ix)=>{
-    const done=today.find(e=>same(e.name,it.name)),last=lastBefore(it.name,d);
+    const done=today.find(e=>same(e.name,it.name)),last=lastBefore(it.name,d),an=analyze(it);
     return `<li class="card ${done?'done':''}" data-id="${it.id}"><div class="crow"><button type="button" class="head" data-open="${it.id}" aria-expanded="${open===it.id}">
       <span class="tick"></span><span class="name">${esc(it.name)}</span>${it.note?`<span class="fnote">${esc(it.note)}</span>`:''}
       <span>${done?nums(done)+' <span class="meta">· udført</span>':nums(it)+' <span class="meta">· '+pzTxt(it)+'</span>'}</span>
-      <span class="meta">${lastLine(last)}</span></button>
+      <span class="meta">${lastLine(last)}</span>${an.st==='warn'?`<span class="flag">● ${esc(an.short)}</span>`:''}</button>
       <div class="ctools"><span class="grip" data-grip="${it.id}" role="button" aria-label="Træk for at flytte"><svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true"><path d="M1 1h18M1 7h18M1 13h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></div></div>
       ${(it.photos||[]).some(id=>photoCache[id])?`<div style="padding:0 14px 12px 54px">${thumbs(it.photos)}</div>`:''}
       ${open===it.id?`<div class="ed">${editor('train')}${noteField('dnote','Note til i dag','Tilføj note')}<div class="row"><button class="primary" type="button" data-done="${it.id}">${done?'Gem ændring':'Udført'}</button>${done?`<button class="ghost" type="button" data-undo="${done.id}">Fortryd</button>`:''}</div></div>`:''}</li>`;
@@ -349,13 +368,13 @@ function series(name){
   return{keys,m,pts:ds.map(d=>({d,v:Math.round(f(by[d])*10)/10}))};
 }
 function renderChart(name){
-  const s=series(name);chartData=s;const u=METRICS[s.m][1];
-  $('mchips').innerHTML=s.keys.map(k=>`<button type="button" data-metric="${k}" aria-pressed="${k===s.m}">${METRICS[k][0]}</button>`).join('');
+  const s=series(name);chartData=s;const sec=entries.some(e=>e.name===name&&e.unit==='sec'),lb=k=>sec&&k==='best'?'Længste sæt':sec&&k==='tot'?'Tid i alt':METRICS[k][0],u=sec&&METRICS[s.m][1]==='reps'?'sek':METRICS[s.m][1];
+  $('mchips').innerHTML=s.keys.map(k=>`<button type="button" data-metric="${k}" aria-pressed="${k===s.m}">${lb(k)}</button>`).join('');
   const p=s.pts,last=p[p.length-1],first=p[0];
   if(!last){$('msum').textContent='Ingen registrerede sæt endnu.';$('mnote').textContent='';drawChart();return}
   const df=Math.round((last.v-first.v)*10)/10;
   $('msum').innerHTML=`Seneste: <b>${fmtKg(last.v)} ${u}</b>`+(p.length>1?` <span class="meta">· ${df>=0?'+':'−'}${fmtKg(Math.abs(df))} ${u} siden ${shortDate(first.d)}</span>`:'');
-  $('mnote').textContent=NOTES[s.m]+(p.length<2?' Grafen viser en udvikling, når du har mindst to pas.':'');
+  $('mnote').textContent=(sec&&s.m==='best'?'Længste sæt pr. pas.':sec&&s.m==='tot'?'Al tid i passet lagt sammen.':NOTES[s.m])+(p.length<2?' Grafen viser en udvikling, når du har mindst to pas.':'');
   drawChart();
 }
 function drawChart(){
@@ -369,13 +388,61 @@ function drawChart(){
   svg.innerHTML=ticks+(p.length>1?`<polyline class="ln" points="${p.map((q,i)=>x(i)+','+y(q.v)).join(' ')}"/>`:'')+p.map((q,i)=>`<circle class="pt" cx="${x(i)}" cy="${y(q.v)}" r="${p.length>40?3:4.5}"><title>${shortDate(q.d)}: ${fmtKg(q.v)}</title></circle>`).join('')+xl;
 }
 const chartRO=new ResizeObserver(drawChart);chartRO.observe($('chart'));
+/* ---------- Træningsanalyse ---------- */
+const medv=a=>{const q=[...a].sort((x,y)=>x-y),m=q.length>>1;return q.length?(q.length%2?q[m]:(q[m-1]+q[m])/2):0};
+function resolveFocus(it){if(it.focus&&FOCUS[it.focus]&&it.focus!=='auto')return it.focus;if(it.unit==='sec')return'end';const r=medv((it.sets||[]).map(x=>+x.reps).filter(x=>x>0));return!r?'hyp':r<=6?'str':r<=15?'hyp':'end'}
+const AM={e1rm:['estimeret 1RM','kg',q=>Math.max(...q.map(x=>(+x.kg||0)*(1+(+x.reps||0)/30)))],maxkg:['tungeste vægt','kg',q=>Math.max(...q.map(x=>+x.kg||0))],vol:['volumen','kg',q=>q.reduce((a,x)=>a+(+x.kg||0)*(+x.reps||0),0)],best:['bedste sæt','reps',q=>Math.max(...q.map(x=>+x.reps||0))],tot:['i alt','reps',q=>q.reduce((a,x)=>a+(+x.reps||0),0)]};
+const metricKey=(focus,bw)=>bw?({str:'best',pow:'best'})[focus]||'tot':({str:'e1rm',pow:'maxkg',hyp:'vol',stab:'vol'})[focus]||'tot';
+const A_MIN=6,CHARTKEY={e1rm:'e1rm',maxkg:'kg',vol:'vol',best:'best',tot:'tot'};
+function analyze(it){
+  const focus=resolveFocus(it),goal=GOAL[it.goal]?it.goal:'po',base={focus,goal,guess:!it.focus||it.focus==='auto'};
+  if(focus==='tech')return{...base,st:'off',short:'',txt:'Teknik: øvelsen analyseres ikke.'};
+  const by={};entries.filter(e=>same(e.name,it.name)).forEach(e=>(by[e.date]=by[e.date]||[]).push(...(e.sets||[]).filter(x=>x.reps!=null)));
+  const ds=Object.keys(by).filter(d=>by[d].length).sort(),all=ds.flatMap(d=>by[d]);
+  const bw=all.length?all.every(x=>!(+x.kg)):!(it.sets||[]).some(x=>+x.kg);
+  const mk=metricKey(focus,bw),[mn,mu,mf]=AM[mk],sec=it.unit==='sec'||entries.some(e=>same(e.name,it.name)&&e.unit==='sec');
+  const unit=mu==='reps'?(sec?'sek':'reps'):mu,name=mk==='tot'?(sec?'tid i alt':'reps i alt'):mk==='best'?(sec?'længste sæt':'reps i bedste sæt'):mn;
+  const vals=ds.map(d=>mf(by[d])),res={...base,mk,unit,name,n:vals.length};
+  if(vals.length<A_MIN)return{...res,st:'few',short:'',txt:`For få pas til en vurdering (${vals.length} af ${A_MIN}).`};
+  const v=vals.slice(-10),dif=v.slice(1).map((x,i)=>Math.abs(x-v[i])),sig=1.4826*medv(dif)/Math.SQRT2;
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length,r=mean(vals.slice(-3)),p=mean(vals.slice(-6,-3)),thr=Math.max(sig,Math.abs(p)*0.02),ch=r-p;
+  const f=x=>unit==='kg'?fmtKg(Math.round(x*10)/10):String(Math.round(x)),w=`${name[0].toUpperCase()+name.slice(1)}: ${f(p)} → ${f(r)} ${unit} (gennemsnit af 3 pas). Din normale variation er ca. ±${f(sig)} ${unit}.`;
+  const warn=(sh,t)=>({...res,st:'warn',short:sh,txt:t+' '+w}),ok=t=>({...res,st:'ok',short:'',txt:t+' '+w});
+  if(goal==='po')return ch>thr?ok('Fremgang.'):ch<-thr?warn('Fald i '+name,'Fald ud over din normale variation.'):warn('Ingen fremgang i 6 pas','Ingen tydelig fremgang de seneste 6 pas.');
+  if(goal==='maint')return ch<-thr?warn('Fald i '+name,'Fald ud over din normale variation.'):ok('Niveauet holdes.');
+  if(goal==='rehab'){const a1=vals[vals.length-2],a2=vals[vals.length-1],lim=Math.max(2*sig,Math.abs(a1)*0.1);
+    if(a2-a1>lim)return warn('Stort hop sidste pas',`Stort hop sidste pas: ${f(a1)} → ${f(a2)} ${unit}, mere end ${f(lim)} ${unit}.`);
+    return ch<-thr?warn('Fald i '+name,'Fald ud over din normale variation.'):ok('Jævn udvikling.')}
+  return ch>thr?warn('Belastningen stiger','Belastningen stiger, selvom målet er aflastning.'):ok('Belastningen holdes nede.');
+}
+const findByName=n=>{for(const d of curPlan().days)for(const it of d.items)if(same(it.name,n))return it;for(const it of bank)if(same(it.name,n))return it;for(const pl of plans)for(const d of pl.days)for(const it of d.items)if(same(it.name,n))return it;return null};
+let metricUser=false,amoreOpen=false;
+document.addEventListener('toggle',ev=>{if(ev.target.classList&&ev.target.classList.contains('amore'))amoreOpen=ev.target.open},true);
+function renderAnalysis(){
+  const pl=curPlan(),an=pl.days.flatMap(d=>d.items.map(it=>({it,a:analyze(it)}))),ord={warn:0,ok:1,few:2,off:3};an.sort((x,y)=>ord[x.a.st]-ord[y.a.st]);
+  const row=({it,a})=>`<li><button type="button" class="arow" data-aex="${esc(it.name)}"><span class="adot ${a.st}"></span><span><b>${esc(it.name)}</b><span class="meta"> · ${FOCUS[a.focus]}${a.guess&&a.focus!=='tech'?' (gæt)':''} · ${GOAL[a.goal]}</span><br><span class="${a.st==='warn'?'flag':'meta'}">${a.st==='warn'?esc(a.short):a.st==='ok'?'Følger målet':a.st==='few'?`${a.n} af ${A_MIN} pas`:'Analyseres ikke'}</span></span></button></li>`;
+  const w=an.filter(x=>x.a.st==='warn'),rest=an.filter(x=>x.a.st!=='warn');
+  $('analysis').innerHTML=`<h2 style="margin:4px 0 4px">Analyse</h2>`+(an.length?`<p class="meta" style="margin:0 0 6px">${esc(pl.name)}: ${w.length?`${w.length} ${w.length===1?'øvelse kræver':'øvelser kræver'} opmærksomhed.`:'Ingen øvelser kræver opmærksomhed lige nu.'}</p>
+    ${w.length?`<ul class="alist">${w.map(row).join('')}</ul>`:''}${rest.length?`<details class="amore" ${amoreOpen?'open':''}><summary>Vis ${w.length?'resten af ':''}øvelserne (${rest.length})</summary><ul class="alist">${rest.map(row).join('')}</ul></details>`:''}`
+    :'<p class="meta">Der er ingen øvelser i dit aktive program.</p>')+
+    `<button class="ghost" type="button" data-copyai style="margin-top:10px">Kopiér til Claude</button><textarea id="aiText" readonly hidden style="margin-top:8px;min-height:160px"></textarea>`;
+}
+function aiSummary(){const pl=curPlan(),L=[`Træningsanalyse fra min træningslog (${fmtDate(todayIso)})`,`Aktivt program: ${pl.name}`,'',
+  `Appens regler: Fokus afgør, hvilket tal der følges (styrke = estimeret 1RM, power = tungeste vægt, hypertrofi og stabilitet = volumen, udholdenhed, mobilitet og plyometri = reps/tid i alt). En øvelse vurderes først efter ${A_MIN} pas. Gennemsnittet af de seneste 3 pas sammenlignes med de 3 før, målt mod min normale variation fra pas til pas.`,''];
+  pl.days.forEach(d=>{L.push(`## ${d.name}`);d.items.forEach(it=>{const a=analyze(it);L.push(`- ${it.name} | Fokus: ${FOCUS[a.focus]}${a.guess&&a.focus!=='tech'?' (gættet ud fra reps)':''} | Mål: ${GOAL[a.goal]}${it.uni?' | Unilateral':''}${it.unit==='sec'?' | Måles i sekunder':''}`);L.push(`  Vurdering: ${a.txt}`);
+    const es=entries.filter(e=>same(e.name,it.name)).sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:x.ts-y.ts).slice(-6);if(es.length)L.push('  Seneste pas: '+es.map(e=>`${e.date}: ${sumTxt(e)}`).join(' | '));
+    const nt=es.filter(e=>e.note).map(e=>`${e.date}: ${e.note}`);if(nt.length)L.push('  Noter: '+nt.join(' | '));if(it.note)L.push('  Fast note: '+it.note)});L.push('')});
+  L.push('Vurdér min udvikling ud fra mine mål og analyseprincipper, og foreslå konkrete justeringer.');return L.join('\n')}
 let calView='cal',devSel='';
 function renderHist(){
   const n=[...new Set(entries.map(e=>e.name))].sort((a,b)=>a.localeCompare(b,'da'));
   if(!n.includes(devSel)){const last=[...entries].sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:b.ts-a.ts)[0];devSel=last?last.name:''}
   $('filter').innerHTML=(n.length?'':'<option value="">Ingen øvelser endnu</option>')+n.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
   $('filter').value=devSel;
-  const f=devSel;$('chartBox').hidden=!f;
+  renderAnalysis();
+  const f=devSel;$('chartBox').hidden=!f;const fi=f&&findByName(f),fa=fi&&analyze(fi);
+  if(!metricUser)metric=fa&&fa.mk?CHARTKEY[fa.mk]:null;
+  $('adet').innerHTML=fa?`<b>${FOCUS[fa.focus]}${fa.guess&&fa.focus!=='tech'?' (gæt ud fra reps)':''} · ${GOAL[fa.goal]}</b><br><span class="${fa.st==='warn'?'flag':''}">${esc(fa.txt)}</span>`:'';
   if(!f){$('hist').innerHTML='<p class="empty">Når du har registreret træning, kan du følge udviklingen i hver øvelse her.</p>';return}
   renderChart(f);
   const list=entries.filter(e=>e.name===f).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:a.ts-b.ts);
@@ -435,10 +502,10 @@ function openTrain(id){open=id;draft=null;if(!id){clearDraft();return}const{it}=
   const td=entries.find(e=>e.date===d&&same(e.name,it.name)),lb=td?null:lastBefore(it.name,d),src=td||lb||it;
   const sets=clone(src.sets);
   if(!td&&lb){const ks=sets.map(x=>x.kg).filter(k=>k!=null).map(Number),mx=Math.max(...ks);if(ks.length&&mx>ks[0])sets.forEach(x=>{if(x.kg!=null)x.kg=mx})}
-  draft={name:it.name,dnote:td&&td.note||'',sets,pause:src.pause,uni:!!it.uni,pauseSide:src.pauseSide??it.pauseSide??180,order:it.order||src.order||'side'};persistDraft()}
+  draft={name:it.name,unit:it.unit,dnote:td&&td.note||'',sets,pause:src.pause,uni:!!it.uni,pauseSide:src.pauseSide??it.pauseSide??180,order:it.order||src.order||'side'};persistDraft()}
 document.addEventListener('input',ev=>{const t=ev.target;if(!draft||!t.dataset.k)return;const k=t.dataset.k;
   if(k==='name'){draft.name=t.value;const m=tab==='train'&&(open==='new'||open==='extra')&&bank.find(b=>same(b.name,t.value));
-    if(m&&draft._bank!==m.id){Object.assign(draft,{sets:clone(m.sets),pause:m.pause,uni:!!m.uni,pauseSide:m.pauseSide??180,order:m.order||'side',note:m.note||'',photos:clone(m.photos||[]),_bank:m.id});render();const f=$('x-name');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}}}
+    if(m&&draft._bank!==m.id){Object.assign(draft,{sets:clone(m.sets),pause:m.pause,uni:!!m.uni,pauseSide:m.pauseSide??180,order:m.order||'side',note:m.note||'',photos:clone(m.photos||[]),focus:m.focus,goal:m.goal,unit:m.unit,_bank:m.id});render();const f=$('x-name');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}}}
   else if(k==='note'||k==='dnote')draft[k]=t.value;
   else if(t.value.trim()===''&&+t.dataset.i>=0)draft.sets[+t.dataset.i][k]=null;
   else dset(+t.dataset.i,k,num(t.value));
@@ -502,21 +569,25 @@ document.addEventListener('click',ev=>{
   if(d.addnote&&draft){draft['_'+d.addnote]=true;persistDraft();render();const n=$('n-'+d.addnote);if(n)n.focus();return}
   if(d.uni!==undefined&&draft){draft.uni=!draft.uni;if(draft.pauseSide==null)draft.pauseSide=180;persistDraft();render();return}
   if(d.order&&draft){draft.order=d.order;persistDraft();render();return}
-  if(d.metric){metric=d.metric;render();return}
+  if(d.metric){metric=d.metric;metricUser=true;render();return}
+  if(d.aex!==undefined){devSel=d.aex;metricUser=false;render();const cb=$('chartBox');if(cb)cb.scrollIntoView({block:'start'});return}
+  if(d.copyai!==undefined){const txt=aiSummary(),fb=()=>{const ta=$('aiText');ta.value=txt;ta.hidden=false;ta.focus();ta.select();$('status').textContent='Kunne ikke kopiere automatisk. Markér teksten i feltet og kopiér den.'};
+    try{navigator.clipboard.writeText(txt).then(()=>{$('status').textContent='Kopieret. Sæt teksten ind i en chat i dit Gym App-projekt i Claude.'},fb)}catch(e){fb()}return}
+  if(d.unit&&draft){draft.unit=d.unit;persistDraft();render();return}
   if(d.calview){calView=d.calview;calForm=false;calMoveId=null;render();window.scrollTo({top:0});return}
-  if(d.hex!==undefined){devSel=d.hex;calView='dev';tab='cal';render();window.scrollTo({top:0});return}
+  if(d.hex!==undefined){devSel=d.hex;metricUser=false;calView='dev';tab='cal';render();window.scrollTo({top:0});return}
   if(d.tab){if(d.tab!==tab){editPlan=activePlan;newPlanForm=false;calForm=false;calMoveId=null}tab=d.tab;open=editItem=draft=null;planView=false;if(tab==='train')restoreDraft();render();return}
   if(d.prog){active=d.prog;save(KA,active);planBanner=null;open=draft=null;restoreDraft();render();return}
   if(d.open){openTrain(open===d.open?null:d.open);render();return}
   if(d.done){const{it}=findItem(d.done),dt=dateSel(),ex=entries.find(e=>e.date===dt&&same(e.name,it.name));
-    const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}const dn=(draft.dnote||'').trim();if(dn)v.note=dn;if(ex){Object.assign(ex,v);if(!dn)delete ex.note}else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now(),dayId:active,planId:activePlan});
+    const v={sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni};if(draft.unit==='sec')v.unit='sec';if(draft.uni){v.pauseSide=draft.pauseSide;v.order=draft.order;if(it.order!==draft.order){it.order=draft.order;saveP()}}const dn=(draft.dnote||'').trim();if(dn)v.note=dn;if(ex){Object.assign(ex,v);if(!dn)delete ex.note}else entries.push({id:uid(),name:it.name,...v,date:dt,ts:Date.now(),dayId:active,planId:activePlan});
     it.sets=clone(draft.sets);saveP();saveE();const items=programs.find(p=>p.id===active).items,nx=items.find(x=>!entries.some(e=>e.date===dt&&same(e.name,x.name)));openTrain(nx?nx.id:null);render();return}
   if(d.undo){entries=entries.filter(e=>e.id!==d.undo);saveE();render();return}
   if(d.opennew!==undefined){open='new';draft={name:'',sets:[{kg:null,reps:null}],pause:90,uni:false,order:'side'};persistDraft();render();$('x-name').focus();return}
   if(d.openextra!==undefined){open='extra';draft={name:'',sets:[{kg:null,reps:null}],pause:90};persistDraft();render();$('x-name').focus();return}
   if(d.savenew!==undefined){const n=draft.name.trim();if(!n){$('x-name').focus();return}
     const prog=programs.find(p=>p.id===active),m=draft._bank&&bank.find(x=>x.id===draft._bank&&same(x.name,n)),it=m||{id:uid()};
-    Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;if((draft.photos||[]).length)it.photos=clone(draft.photos);else delete it.photos;
+    Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side',focus:draft.focus&&draft.focus!=='auto'?draft.focus:undefined,goal:GOAL[draft.goal]?draft.goal:undefined,unit:draft.unit==='sec'?'sec':undefined});['focus','goal','unit'].forEach(k=>{if(it[k]===undefined)delete it[k]});const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;if((draft.photos||[]).length)it.photos=clone(draft.photos);else delete it.photos;
     if(m)bank.splice(bank.indexOf(m),1);
     prog.items.splice(doneIdx(prog)+1,0,it);saveP();
     $('status').textContent=`${n} er lagt ind i ${prog.name}${m?' fra øvelsesbanken':''}.`;openTrain(it.id);render();return}
@@ -541,7 +612,7 @@ document.addEventListener('click',ev=>{
   if(d.additem){const it={id:uid(),name:'Ny øvelse',sets:[{kg:null,reps:null}],pause:90};dayById(d.additem).items.push(it);saveP();editItem=it.id;draft=clone(it);render();$('p-name').focus();$('p-name').select();return}
   if(d.up||d.down){const{p,i}=findItem(d.up||d.down),j=d.up?i-1:i+1;if(p&&j>=0&&j<p.items.length){[p.items[i],p.items[j]]=[p.items[j],p.items[i]];saveP()}render();return}
   if(d.edit){editItem=editItem===d.edit?null:d.edit;draft=editItem?clone(findItem(editItem).it):null;if(draft&&!draft.order)draft.order='side';render();return}
-  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;if((draft.photos||[]).length)it.photos=clone(draft.photos);else delete it.photos;Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side'});saveP();editItem=null;render();return}
+  if(d.saveitem){const{it}=findItem(d.saveitem);const n=draft.name.trim();if(!n){$('p-name').focus();return}const fn=(draft.note||'').trim();if(fn)it.note=fn;else delete it.note;if((draft.photos||[]).length)it.photos=clone(draft.photos);else delete it.photos;Object.assign(it,{name:n,sets:clone(draft.sets),pause:draft.pause,uni:!!draft.uni,pauseSide:draft.pauseSide??180,order:draft.order||'side',focus:draft.focus&&draft.focus!=='auto'?draft.focus:undefined,goal:GOAL[draft.goal]?draft.goal:undefined,unit:draft.unit==='sec'?'sec':undefined});['focus','goal','unit'].forEach(k=>{if(it[k]===undefined)delete it[k]});saveP();editItem=null;render();return}
   if(d.delitem){const{it}=findItem(d.delitem);askConfirm(`Er du sikker på, at du vil slette øvelsen "${it.name}"? Din historik for øvelsen bliver ikke slettet.`,()=>{const{p,i}=findItem(d.delitem);if(p){p.items.splice(i,1);saveP()}editItem=draft=null;render()});return}
 });
 document.addEventListener('change',ev=>{
@@ -552,7 +623,8 @@ document.addEventListener('change',ev=>{
     $('status').textContent=`${it.name} er flyttet til ${to.name}.`;render();return}
   if(t.id==='date'){open=draft=null;applyPlanFor(dateSel());restoreDraft();render();return}
   if(t.id==='calday'){calDay=t.value;return}
-  if(t.id==='filter'){devSel=t.value;renderHist();return}
+  if((t.id==='f-focus'||t.id==='f-goal')&&draft){draft[t.id==='f-focus'?'focus':'goal']=t.value;persistDraft();return}
+  if(t.id==='filter'){devSel=t.value;metricUser=false;renderHist();return}
 });
 
 /* ---------- backup ---------- */
